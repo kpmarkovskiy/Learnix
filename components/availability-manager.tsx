@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 const DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const hhmm = (t: string) => t.slice(0, 5) // "16:00:00" -> "16:00"
 
+// Время с шагом 30 минут (06:00 … 23:30)
+const TIMES: string[] = []
+for (let h = 6; h <= 23; h++) for (const m of ['00', '30']) TIMES.push(`${String(h).padStart(2, '0')}:${m}`)
+
 // Дата в формате YYYY-MM-DD без сдвигов часовых поясов.
 function ymd(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
@@ -165,11 +169,19 @@ export function AvailabilityManager() {
           <div className="avail-form">
             <div className="avail-field">
               <label>С</label>
-              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+              <select value={start} onChange={(e) => setStart(e.target.value)}>
+                {TIMES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
             <div className="avail-field">
               <label>До</label>
-              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <select value={end} onChange={(e) => setEnd(e.target.value)}>
+                {TIMES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
             <button className="btn avail-add" onClick={add}>
               Добавить

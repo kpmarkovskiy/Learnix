@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const hhmm = (t: string) => t.slice(0, 5)
+
+// Время с шагом 30 минут (06:00 … 23:30)
+const TIMES: string[] = []
+for (let h = 6; h <= 23; h++) for (const m of ['00', '30']) TIMES.push(`${String(h).padStart(2, '0')}:${m}`)
+
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('ru-RU', {
     day: 'numeric',
@@ -105,7 +110,12 @@ export function LessonScheduler({
       end_time: end,
     })
     if (insErr) {
-      setError(insErr.message)
+      // 23P01 — нарушение exclusion-констрейнта (пересечение уроков)
+      if (insErr.code === '23P01' || /no_overlap/i.test(insErr.message)) {
+        setError('На это время уже есть занятие')
+      } else {
+        setError(insErr.message)
+      }
       return
     }
 
@@ -124,6 +134,11 @@ export function LessonScheduler({
       p_user_id: studentId,
       p_text: `Занятие ${fmtDate(lesson.date)} отменено`,
     })
+    load()
+  }
+
+  async function remove(lesson: Lesson) {
+    await supabase.from('lessons').delete().eq('id', lesson.id)
     load()
   }
 
@@ -163,11 +178,19 @@ export function LessonScheduler({
           </div>
           <div className="avail-field">
             <label>С</label>
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            <select value={start} onChange={(e) => setStart(e.target.value)}>
+              {TIMES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
           <div className="avail-field">
             <label>До</label>
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <select value={end} onChange={(e) => setEnd(e.target.value)}>
+              {TIMES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
           <button className="btn avail-add" onClick={schedule}>
             Назначить
@@ -195,6 +218,11 @@ export function LessonScheduler({
                   {l.status === 'scheduled' && (
                     <button className="lesson-cancel" onClick={() => cancel(l)}>
                       Отменить
+                    </button>
+                  )}
+                  {l.status === 'cancelled' && (
+                    <button className="lesson-cancel" onClick={() => remove(l)}>
+                      Удалить
                     </button>
                   )}
                 </span>
