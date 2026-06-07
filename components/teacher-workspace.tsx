@@ -7,24 +7,28 @@ import { TeacherStudents } from '@/components/teacher-students'
 import { TeacherAddLesson } from '@/components/teacher-add-lesson'
 import { TeacherLessons } from '@/components/teacher-lessons'
 import { NotificationBell } from '@/components/notification-bell'
+import { Chat } from '@/components/chat'
 
 type Student = { id: string; name: string; email: string }
-type Tab = 'students' | 'add' | 'lessons'
+type Tab = 'students' | 'add' | 'lessons' | 'chat'
 
 const NAV: { id: Tab; label: string }[] = [
   { id: 'students', label: 'Ученики' },
   { id: 'add', label: 'Добавление уроков' },
   { id: 'lessons', label: 'Просмотр уроков' },
+  { id: 'chat', label: 'Чат' },
 ]
 
 export function TeacherWorkspace({
   name,
   inviteCode,
   students,
+  currentUserId,
 }: {
   name: string
   inviteCode: string | null
   students: Student[]
+  currentUserId: string
 }) {
   const [tab, setTab] = useState<Tab>('students')
   const slim = students.map((s) => ({ id: s.id, name: s.name }))
@@ -47,9 +51,6 @@ export function TeacherWorkspace({
               {n.label}
             </button>
           ))}
-          <button className="shell-tab disabled" disabled>
-            Чат <span className="soon">скоро</span>
-          </button>
         </nav>
 
         <div className="shell-foot">
@@ -67,6 +68,7 @@ export function TeacherWorkspace({
         {tab === 'students' && <TeacherStudents students={slim} inviteCode={inviteCode} />}
         {tab === 'add' && <TeacherAddLesson students={slim} />}
         {tab === 'lessons' && <TeacherLessons students={slim} />}
+        {tab === 'chat' && <Chat peers={slim} currentUserId={currentUserId} />}
       </main>
     </div>
   )

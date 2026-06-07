@@ -32,6 +32,7 @@ export default async function TeacherPage() {
       name={profile?.name || 'учитель'}
       inviteCode={profile?.invite_code ?? null}
       students={studentList}
+      currentUserId={user.id}
     />
   )
 }
