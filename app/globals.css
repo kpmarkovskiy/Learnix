@@ -533,9 +533,9 @@ h1, h2, h3 {
   padding-bottom: 2px;
 }
 .cal-cell {
-  aspect-ratio: 1;
+  min-height: 40px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface-2);
   color: var(--text);
   display: flex;
@@ -766,3 +766,120 @@ h1, h2, h3 {
 }
 .cal-legend .leg-free { border: 1.5px solid var(--accent); }
 .cal-legend .leg-busy { background: var(--accent); margin-left: 12px; }
+
+/* ============================================================
+   Раскладка кабинета учителя: сайдбар слева + рабочая область
+   ============================================================ */
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+.shell-side {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.shell-brand {
+  font-family: var(--font-display), serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.shell-brand span { color: var(--accent); }
+.shell-side-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 6px 0 4px;
+}
+.shell-students {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+.shell-student {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.shell-student:hover { background: var(--surface-2); }
+.shell-student.active { background: var(--accent-soft); border-color: var(--accent); }
+.shell-student.active .shell-student-name { color: var(--accent-strong); font-weight: 600; }
+.shell-student-av {
+  width: 30px; height: 30px; flex: 0 0 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 14px;
+}
+.shell-student-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.shell-student .free-dot {
+  width: 7px; height: 7px; flex: 0 0 7px;
+  border-radius: 50%; background: var(--accent);
+}
+.shell-empty { font-size: 13px; color: var(--text-soft); }
+.shell-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.shell-foot .theme-toggle,
+.shell-foot .btn-ghost { width: 100%; text-align: center; }
+
+.shell-main { padding: 36px 40px; max-width: 760px; }
+.shell-head { margin-bottom: 16px; }
+.shell-head h1 { font-size: 30px; margin-bottom: 6px; }
+
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; }
+  .shell-students { flex-direction: row; flex-wrap: wrap; }
+  .shell-student { width: auto; }
+  .shell-main { padding: 24px 20px; }
+}
+
+/* Перенос урока (инлайн-редактирование времени) */
+.lesson-edit { display: flex; align-items: center; gap: 8px; }
+.lesson-edit select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+.lesson-save {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lesson-save:hover { background: var(--accent-strong); }
