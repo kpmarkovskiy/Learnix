@@ -13,6 +13,16 @@ function avatarClass(name?: string) {
   return AV[Math.abs(h) % AV.length]
 }
 
+const hhmm = (t: string) => t.slice(0, 5)
+const fmtDate = (d: string) =>
+  new Date(d + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  scheduled: { label: 'Запланировано', cls: 'badge-scheduled' },
+  completed: { label: 'Проведено', cls: 'badge-completed' },
+  cancelled: { label: 'Отменено', cls: 'badge-cancelled' },
+}
+
 export default async function StudentPage() {
   const supabase = await createClient()
 
@@ -29,10 +39,21 @@ export default async function StudentPage() {
 
   if (profile?.role !== 'student') redirect('/teacher')
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
   const { data: teachers } = await supabase
     .from('enrollments')
     .select('id, teacher:profiles!enrollments_teacher_id_fkey(id, name, email)')
     .eq('student_id', user.id)
+
+  const { data: lessons } = await supabase
+    .from('lessons')
+    .select('id, date, start_time, end_time, status, teacher:profiles!lessons_teacher_id_fkey(name)')
+    .eq('student_id', user.id)
+    .gte('date', todayStr)
+    .order('date')
+    .order('start_time')
 
   return (
     <>
@@ -47,6 +68,32 @@ export default async function StudentPage() {
       <main className="dash-main">
         <h1>Привет, {profile?.name || 'ученик'}</h1>
         <p className="lead">Кабинет ученика</p>
+
+        <section className="card">
+          <h3>Мои занятия</h3>
+          {lessons && lessons.length > 0 ? (
+            <ul className="lesson-list">
+              {lessons.map((l: any) => (
+                <li key={l.id} className="lesson-item">
+                  <span className="lesson-when">
+                    {fmtDate(l.date)}
+                    <span className="lesson-time">
+                      {hhmm(l.start_time)}–{hhmm(l.end_time)}
+                    </span>
+                    {l.teacher?.name && (
+                      <span className="lesson-time">· {l.teacher.name}</span>
+                    )}
+                  </span>
+                  <span className={`badge ${STATUS[l.status]?.cls ?? ''}`}>
+                    {STATUS[l.status]?.label ?? l.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty">Занятий пока не назначено.</p>
+          )}
+        </section>
 
         <section className="card">
           <h3>Записаться к учителю</h3>

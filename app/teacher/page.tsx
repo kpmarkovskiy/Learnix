@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { SignOutButton } from '@/components/sign-out-button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -64,14 +65,20 @@ export default async function TeacherPage() {
           {students && students.length > 0 ? (
             <ul className="people-list">
               {students.map((row: any) => (
-                <li key={row.id} className="person-row">
-                  <span className={`person-avatar ${avatarClass(row.student?.name)}`}>
-                    {(row.student?.name || '?').charAt(0).toUpperCase()}
-                  </span>
-                  <span className="person-info">
-                    <span className="person-name">{row.student?.name}</span>
-                    <span className="person-email">{row.student?.email}</span>
-                  </span>
+                <li key={row.id}>
+                  <Link
+                    href={`/teacher/students/${row.student?.id}`}
+                    className="person-row person-link"
+                  >
+                    <span className={`person-avatar ${avatarClass(row.student?.name)}`}>
+                      {(row.student?.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <span className="person-info">
+                      <span className="person-name">{row.student?.name}</span>
+                      <span className="person-email">{row.student?.email}</span>
+                    </span>
+                    <span className="person-chevron">›</span>
+                  </Link>
                 </li>
               ))}
             </ul>
