@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 
 const DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const hhmm = (t: string) => t.slice(0, 5)
+const toMin = (t: string) => { const [h, m] = hhmm(t).split(':').map(Number); return h * 60 + m }
 function ymd(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
@@ -20,6 +21,7 @@ type Student = { id: string; name: string }
 function mapErr(e: { code?: string; message: string }) {
   if (e.code === '23P01' || /no_overlap/i.test(e.message)) return 'conflict'
   if (/свободн/i.test(e.message)) return 'nowin'
+  if (/учител/i.test(e.message)) return 'teacher'
   return 'other'
 }
 
@@ -61,7 +63,38 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const anyFreeDates = useMemo(() => new Set(avail.map((a) => a.date)), [avail])
+  // Дни, где у кого-то осталось НЕЗАНЯТОЕ свободное время (окно минус уроки).
+  const freeDates = useMemo(() => {
+    const set = new Set<string>()
+    const dates = new Set(avail.map((a) => a.date))
+    for (const date of dates) {
+      let has = false
+      for (const s of students) {
+        const windows = avail.filter((w) => w.student_id === s.id && w.date === date)
+        const busy = lessons
+          .filter((l) => l.student_id === s.id && l.date === date)
+          .map((l) => ({ s: toMin(l.start_time), e: toMin(l.end_time) }))
+        for (const w of windows) {
+          const ws = toMin(w.start_time), we = toMin(w.end_time)
+          let cursor = ws
+          const rel = busy.filter((b) => b.e > ws && b.s < we).sort((a, b) => a.s - b.s)
+          let free = false
+          for (const b of rel) {
+            if (b.s > cursor) { free = true; break }
+            cursor = Math.max(cursor, b.e)
+            if (cursor >= we) break
+          }
+          if (!free && cursor < we) free = true
+          if (free) { has = true; break }
+        }
+        if (has) break
+      }
+      if (has) set.add(date)
+    }
+    return set
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avail, lessons, students])
+
   const dayLessons = selected
     ? lessons.filter((l) => l.date === selected).sort((a, b) => a.start_time.localeCompare(b.start_time))
     : []
@@ -108,7 +141,7 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
     if (start >= end) return setMsg({ type: 'err', text: 'Начало должно быть раньше конца' })
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    let ok = 0, conflict = 0, nowin = 0, other = 0
+    let ok = 0, conflict = 0, nowin = 0, teacher = 0, other = 0
     for (const sid of checked) {
       const { error } = await supabase.from('lessons').insert({
         teacher_id: user.id, student_id: sid, date: selected, start_time: start, end_time: end, lesson_type: ltype,
@@ -117,6 +150,7 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
         const k = mapErr(error)
         if (k === 'conflict') conflict++
         else if (k === 'nowin') nowin++
+        else if (k === 'teacher') teacher++
         else other++
       } else {
         ok++
@@ -126,6 +160,7 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
     let text = `Назначено: ${ok}`
     if (conflict) text += `, занято: ${conflict}`
     if (nowin) text += `, вне окна: ${nowin}`
+    if (teacher) text += `, пересечение у вас: ${teacher}`
     if (other) text += `, ошибок: ${other}`
     setMsg({ type: ok > 0 ? 'ok' : 'err', text })
     setChecked([])
@@ -141,7 +176,12 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
     const { error } = await supabase.from('lessons').update({ start_time: editStart, end_time: editEnd }).eq('id', l.id)
     if (error) {
       const k = mapErr(error)
-      setEditErr(k === 'conflict' ? 'У ученика уже есть урок в это время' : k === 'nowin' ? 'Это время вне свободных окон ученика' : error.message)
+      setEditErr(
+        k === 'conflict' ? 'У ученика уже есть урок в это время'
+          : k === 'nowin' ? 'Это время вне свободных окон ученика'
+          : k === 'teacher' ? 'На это время у вас уже есть другое занятие'
+          : error.message
+      )
       return
     }
     await supabase.rpc('create_notification', { p_user_id: l.student_id, p_text: `Занятие ${fmtDate(l.date)} перенесено на ${editStart}` })
@@ -176,12 +216,12 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
             return (
               <div key={ds} className={cls.join(' ')} onClick={() => pick(d)}>
                 {d}
-                {anyFreeDates.has(ds) && <span className="cal-dot-free" />}
+                {freeDates.has(ds) && <span className="cal-dot-free" />}
               </div>
             )
           })}
         </div>
-        <p className="cal-legend"><span className="leg-free" /> кто-то свободен</p>
+        <p className="cal-legend"><span className="leg-free" /> есть свободное время</p>
       </div>
 
       <div className="card">
