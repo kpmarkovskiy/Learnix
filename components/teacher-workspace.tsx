@@ -6,6 +6,7 @@ import { SignOutButton } from '@/components/sign-out-button'
 import { TeacherStudents } from '@/components/teacher-students'
 import { TeacherAddLesson } from '@/components/teacher-add-lesson'
 import { TeacherLessons } from '@/components/teacher-lessons'
+import { NotificationBell } from '@/components/notification-bell'
 
 type Student = { id: string; name: string; email: string }
 type Tab = 'students' | 'add' | 'lessons'
@@ -30,6 +31,9 @@ export function TeacherWorkspace({
 
   return (
     <div className="shell">
+      <div style={{ position: 'fixed', top: 16, right: 24, zIndex: 200 }}>
+        <NotificationBell />
+      </div>
       <aside className="shell-side">
         <div className="shell-brand">Learn<span>ix</span></div>
 

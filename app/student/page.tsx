@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SignOutButton } from '@/components/sign-out-button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { NotificationBell } from '@/components/notification-bell'
 import { EnrollForm } from '@/components/enroll-form'
 import { AvailabilityManager } from '@/components/availability-manager'
 
@@ -60,6 +61,7 @@ export default async function StudentPage() {
       <header className="dash-header">
         <div className="brand-mark">Learn<span>ix</span></div>
         <div className="header-actions">
+          <NotificationBell />
           <ThemeToggle />
           <SignOutButton />
         </div>

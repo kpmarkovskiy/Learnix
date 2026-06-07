@@ -68,12 +68,12 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
     const set = new Set<string>()
     const dates = new Set(avail.map((a) => a.date))
     for (const date of dates) {
+      const busy = lessons
+        .filter((l) => l.date === date)
+        .map((l) => ({ s: toMin(l.start_time), e: toMin(l.end_time) }))
       let has = false
       for (const s of students) {
         const windows = avail.filter((w) => w.student_id === s.id && w.date === date)
-        const busy = lessons
-          .filter((l) => l.student_id === s.id && l.date === date)
-          .map((l) => ({ s: toMin(l.start_time), e: toMin(l.end_time) }))
         for (const w of windows) {
           const ws = toMin(w.start_time), we = toMin(w.end_time)
           let cursor = ws
@@ -125,12 +125,24 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
     setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
+  // Занят ли учитель в выбранный слот (с учётом типа занятия).
+  const teacherBusy = (() => {
+    if (!selected) return false
+    const ov = lessons.filter((l) => l.date === selected && hhmm(l.start_time) < end && hhmm(l.end_time) > start)
+    if (ov.length === 0) return false
+    if (ltype === 'individual') return true
+    // групповое можно совмещать только с такой же групповой сессией (то же время)
+    return !ov.every((l) => l.lesson_type === 'group' && hhmm(l.start_time) === start && hhmm(l.end_time) === end)
+  })()
+
   function statusFor(sid: string): 'busy' | 'free' | 'none' {
     if (!selected) return 'none'
-    const busy = lessons.some((l) => l.student_id === sid && l.date === selected && hhmm(l.start_time) < end && hhmm(l.end_time) > start)
-    if (busy) return 'busy'
+    const ownBusy = lessons.some((l) => l.student_id === sid && l.date === selected && hhmm(l.start_time) < end && hhmm(l.end_time) > start)
+    if (ownBusy) return 'busy'
     const free = avail.some((w) => w.student_id === sid && w.date === selected && hhmm(w.start_time) <= start && hhmm(w.end_time) >= end)
-    return free ? 'free' : 'none'
+    if (!free) return 'none'
+    if (teacherBusy) return 'busy' // время занято у учителя — поставить нельзя
+    return 'free'
   }
   const statusText = { busy: 'занят', free: 'свободен', none: 'нет окна' }
 
@@ -251,6 +263,12 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
                 </select>
               </div>
             </div>
+
+            {teacherBusy && (
+              <p className="enroll-msg-err" style={{ marginTop: 10 }}>
+                Это время у вас уже занято — выберите другое время или тип занятия.
+              </p>
+            )}
 
             <p className="card-hint" style={{ marginTop: 14 }}>Кому назначить:</p>
             <ul className="pick-list">
