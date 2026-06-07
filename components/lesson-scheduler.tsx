@@ -113,6 +113,8 @@ export function LessonScheduler({
       // 23P01 — нарушение exclusion-констрейнта (пересечение уроков)
       if (insErr.code === '23P01' || /no_overlap/i.test(insErr.message)) {
         setError('На это время уже есть занятие')
+      } else if (/свободн/i.test(insErr.message)) {
+        setError('Это время вне свободных окон ученика')
       } else {
         setError(insErr.message)
       }

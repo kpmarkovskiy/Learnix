@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SignOutButton } from '@/components/sign-out-button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { CopyCode } from '@/components/copy-code'
+import { LessonForm } from '@/components/lesson-form'
 
 // Подбираем цвет аватарки по имени — чтобы список был «живым».
 const AV = ['av-coral', 'av-blue', 'av-violet', 'av-teal', 'av-amber']
@@ -35,6 +36,11 @@ export default async function TeacherPage() {
     .select('id, student:profiles!enrollments_student_id_fkey(id, name, email)')
     .eq('teacher_id', user.id)
 
+  // Плоский список {id, name} для выпадающего списка в форме назначения.
+  const studentList = (students ?? [])
+    .map((r: any) => ({ id: r.student?.id, name: r.student?.name }))
+    .filter((s: any) => s.id)
+
   return (
     <>
       <header className="dash-header">
@@ -58,6 +64,14 @@ export default async function TeacherPage() {
             <span className="code-value">{profile?.invite_code ?? '—'}</span>
             {profile?.invite_code && <CopyCode code={profile.invite_code} />}
           </div>
+        </section>
+
+        <section className="card">
+          <h3>Назначить занятие</h3>
+          <p className="card-hint">
+            Выберите ученика и дату — доступны только дни, где он отметил свободное время.
+          </p>
+          <LessonForm students={studentList} />
         </section>
 
         <section className="card">
