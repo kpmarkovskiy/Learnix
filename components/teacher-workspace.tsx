@@ -1,13 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SignOutButton } from '@/components/sign-out-button'
-import { CopyCode } from '@/components/copy-code'
-import { Scheduler } from '@/components/scheduler'
+import { TeacherStudents } from '@/components/teacher-students'
+import { TeacherAddLesson } from '@/components/teacher-add-lesson'
+import { TeacherLessons } from '@/components/teacher-lessons'
 
 type Student = { id: string; name: string; email: string }
+type Tab = 'students' | 'add' | 'lessons'
+
+const NAV: { id: Tab; label: string }[] = [
+  { id: 'students', label: 'Ученики' },
+  { id: 'add', label: 'Добавление уроков' },
+  { id: 'lessons', label: 'Просмотр уроков' },
+]
 
 export function TeacherWorkspace({
   name,
@@ -18,50 +25,27 @@ export function TeacherWorkspace({
   inviteCode: string | null
   students: Student[]
 }) {
-  const [sel, setSel] = useState('')
-  const [availIds, setAvailIds] = useState<Set<string>>(new Set())
-  const supabase = createClient()
-
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-
-  // Кто из учеников отметил свободное время — для точки в списке.
-  useEffect(() => {
-    const ids = students.map((s) => s.id)
-    if (ids.length === 0) return
-    supabase
-      .from('availability')
-      .select('student_id')
-      .in('student_id', ids)
-      .gte('date', todayStr)
-      .then(({ data }) => setAvailIds(new Set((data ?? []).map((r: any) => r.student_id))))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const current = students.find((s) => s.id === sel)
+  const [tab, setTab] = useState<Tab>('students')
+  const slim = students.map((s) => ({ id: s.id, name: s.name }))
 
   return (
     <div className="shell">
       <aside className="shell-side">
         <div className="shell-brand">Learn<span>ix</span></div>
 
-        <p className="shell-side-label">Ученики</p>
-        <nav className="shell-students">
-          {students.length > 0 ? (
-            students.map((s) => (
-              <button
-                key={s.id}
-                className={`shell-student ${s.id === sel ? 'active' : ''}`}
-                onClick={() => setSel(s.id)}
-              >
-                <span className="shell-student-av">{s.name.charAt(0).toUpperCase()}</span>
-                <span className="shell-student-name">{s.name}</span>
-                {availIds.has(s.id) && <span className="free-dot" title="есть свободное время" />}
-              </button>
-            ))
-          ) : (
-            <p className="shell-empty">Пока никто не записался.</p>
-          )}
+        <nav className="shell-nav">
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              className={`shell-tab ${tab === n.id ? 'active' : ''}`}
+              onClick={() => setTab(n.id)}
+            >
+              {n.label}
+            </button>
+          ))}
+          <button className="shell-tab disabled" disabled>
+            Чат <span className="soon">скоро</span>
+          </button>
         </nav>
 
         <div className="shell-foot">
@@ -71,30 +55,14 @@ export function TeacherWorkspace({
       </aside>
 
       <main className="shell-main">
-        {current ? (
-          <>
-            <header className="shell-head">
-              <h1>{current.name}</h1>
-              <p className="lead">{current.email}</p>
-            </header>
-            <Scheduler studentId={current.id} studentName={current.name} />
-          </>
-        ) : (
-          <>
-            <header className="shell-head">
-              <h1>Здравствуйте, {name}</h1>
-              <p className="lead">Выберите ученика слева, чтобы посмотреть его расписание и назначить занятие.</p>
-            </header>
-            <section className="card" style={{ maxWidth: 460 }}>
-              <h3>Код приглашения</h3>
-              <p className="card-hint">Передайте этот код ученикам — по нему они запишутся к вам.</p>
-              <div className="code-row">
-                <span className="code-value">{inviteCode ?? '—'}</span>
-                {inviteCode && <CopyCode code={inviteCode} />}
-              </div>
-            </section>
-          </>
-        )}
+        <header className="shell-head">
+          <h1>{NAV.find((n) => n.id === tab)?.label}</h1>
+          {tab === 'students' && <p className="lead">Здравствуйте, {name}</p>}
+        </header>
+
+        {tab === 'students' && <TeacherStudents students={slim} inviteCode={inviteCode} />}
+        {tab === 'add' && <TeacherAddLesson students={slim} />}
+        {tab === 'lessons' && <TeacherLessons students={slim} />}
       </main>
     </div>
   )

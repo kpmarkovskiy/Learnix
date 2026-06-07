@@ -69,6 +69,7 @@ export default async function StudentPage() {
         <h1>Привет, {profile?.name || 'ученик'}</h1>
         <p className="lead">Кабинет ученика</p>
 
+        <div className="student-grid">
         <section className="card">
           <h3>Мои занятия</h3>
           {lessons && lessons.length > 0 ? (
@@ -101,7 +102,7 @@ export default async function StudentPage() {
           <EnrollForm />
         </section>
 
-        <section className="card">
+        <section className="card span-2">
           <h3>Моё свободное время</h3>
           <p className="card-hint">
             Укажите, когда вам удобно заниматься — учитель увидит эти окна и назначит уроки.
@@ -129,6 +130,7 @@ export default async function StudentPage() {
             <p className="empty">Вы ещё не записаны ни к одному учителю.</p>
           )}
         </section>
+        </div>
       </main>
     </>
   )

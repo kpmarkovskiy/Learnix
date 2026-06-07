@@ -1,0 +1,201 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+
+const DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+const hhmm = (t: string) => t.slice(0, 5)
+function ymd(y: number, m: number, d: number) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+const fmtDate = (d: string) =>
+  new Date(d + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+const TIMES: string[] = []
+for (let h = 6; h <= 23; h++) for (const m of ['00', '30']) TIMES.push(`${String(h).padStart(2, '0')}:${m}`)
+
+type Slot = { student_id: string; date: string; start_time: string; end_time: string }
+type Lesson = { student_id: string; date: string; start_time: string; end_time: string }
+type Student = { id: string; name: string }
+
+export function TeacherAddLesson({ students }: { students: Student[] }) {
+  const today = new Date()
+  const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate())
+
+  const [avail, setAvail] = useState<Slot[]>([])
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const [viewY, setViewY] = useState(today.getFullYear())
+  const [viewM, setViewM] = useState(today.getMonth())
+  const [selected, setSelected] = useState<string | null>(null)
+  const [start, setStart] = useState('16:00')
+  const [end, setEnd] = useState('18:00')
+  const [checked, setChecked] = useState<string[]>([])
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const supabase = createClient()
+  const ids = useMemo(() => students.map((s) => s.id), [students])
+
+  async function load() {
+    if (ids.length === 0) return
+    const [{ data: a }, { data: l }] = await Promise.all([
+      supabase.from('availability').select('student_id, date, start_time, end_time').in('student_id', ids).gte('date', todayStr),
+      supabase.from('lessons').select('student_id, date, start_time, end_time').in('student_id', ids).gte('date', todayStr),
+    ])
+    setAvail((a ?? []) as Slot[])
+    setLessons((l ?? []) as Lesson[])
+  }
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const anyFreeDates = useMemo(() => new Set(avail.map((a) => a.date)), [avail])
+
+  const offset = (new Date(viewY, viewM, 1).getDay() + 6) % 7
+  const daysInMonth = new Date(viewY, viewM + 1, 0).getDate()
+  const cells: (number | null)[] = []
+  for (let i = 0; i < offset; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  const mt = new Date(viewY, viewM, 1).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  const title = mt.charAt(0).toUpperCase() + mt.slice(1)
+  const atCurrentMonth = viewY === today.getFullYear() && viewM === today.getMonth()
+
+  function prevMonth() {
+    if (atCurrentMonth) return
+    if (viewM === 0) { setViewY(viewY - 1); setViewM(11) } else setViewM(viewM - 1)
+  }
+  function nextMonth() {
+    if (viewM === 11) { setViewY(viewY + 1); setViewM(0) } else setViewM(viewM + 1)
+  }
+  function pick(d: number | null) {
+    if (d === null) return
+    const ds = ymd(viewY, viewM, d)
+    if (ds < todayStr) return
+    setSelected(ds); setMsg(null); setChecked([])
+  }
+  function toggle(id: string) {
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  function statusFor(sid: string): 'busy' | 'free' | 'none' {
+    if (!selected) return 'none'
+    const busy = lessons.some((l) => l.student_id === sid && l.date === selected && hhmm(l.start_time) < end && hhmm(l.end_time) > start)
+    if (busy) return 'busy'
+    const free = avail.some((w) => w.student_id === sid && w.date === selected && hhmm(w.start_time) <= start && hhmm(w.end_time) >= end)
+    return free ? 'free' : 'none'
+  }
+  const statusText = { busy: 'занят', free: 'свободен', none: 'нет окна' }
+
+  async function assign() {
+    if (!selected) return
+    setMsg(null)
+    if (checked.length === 0) return setMsg({ type: 'err', text: 'Отметьте хотя бы одного ученика' })
+    if (start >= end) return setMsg({ type: 'err', text: 'Начало должно быть раньше конца' })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    let ok = 0, conflict = 0, other = 0
+    for (const sid of checked) {
+      const { error } = await supabase.from('lessons').insert({
+        teacher_id: user.id, student_id: sid, date: selected, start_time: start, end_time: end,
+      })
+      if (error) {
+        if (error.code === '23P01' || /no_overlap/i.test(error.message)) conflict++
+        else other++
+      } else {
+        ok++
+        await supabase.rpc('create_notification', { p_user_id: sid, p_text: `Новое занятие ${fmtDate(selected)} в ${start}` })
+      }
+    }
+    let text = `Назначено: ${ok}`
+    if (conflict) text += `, занято: ${conflict}`
+    if (other) text += `, ошибок: ${other}`
+    setMsg({ type: ok > 0 ? 'ok' : 'err', text })
+    setChecked([])
+    load()
+  }
+
+  const selLabel = selected
+    ? new Date(selected + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    : ''
+
+  if (students.length === 0) {
+    return <p className="empty">Сначала к вам должен записаться хотя бы один ученик.</p>
+  }
+
+  return (
+    <div className="add-grid">
+      <div className="card">
+        <div className="cal-head">
+          <span className="cal-title">{title}</span>
+          <div className="cal-nav">
+            <button onClick={prevMonth} disabled={atCurrentMonth} aria-label="Предыдущий месяц">‹</button>
+            <button onClick={nextMonth} aria-label="Следующий месяц">›</button>
+          </div>
+        </div>
+        <div className="cal-grid">
+          {DOW.map((d) => <div key={d} className="cal-dow">{d}</div>)}
+          {cells.map((d, i) => {
+            if (d === null) return <div key={'e' + i} className="cal-cell empty-cell" />
+            const ds = ymd(viewY, viewM, d)
+            const cls = ['cal-cell']
+            if (ds < todayStr) cls.push('past')
+            if (ds === todayStr) cls.push('today')
+            if (ds === selected) cls.push('selected')
+            return (
+              <div key={ds} className={cls.join(' ')} onClick={() => pick(d)}>
+                {d}
+                {anyFreeDates.has(ds) && <span className="cal-dot-free" />}
+              </div>
+            )
+          })}
+        </div>
+        <p className="cal-legend"><span className="leg-free" /> кто-то свободен</p>
+      </div>
+
+      <div className="card">
+        {!selected ? (
+          <p className="empty">Выберите дату в календаре слева.</p>
+        ) : (
+          <>
+            <h4 style={{ marginBottom: 12 }}>{selLabel}</h4>
+            <div className="avail-form">
+              <div className="avail-field">
+                <label>С</label>
+                <select value={start} onChange={(e) => setStart(e.target.value)}>
+                  {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="avail-field">
+                <label>До</label>
+                <select value={end} onChange={(e) => setEnd(e.target.value)}>
+                  {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <p className="card-hint" style={{ marginTop: 14 }}>Кому назначить:</p>
+            <ul className="pick-list">
+              {students.map((s) => {
+                const st = statusFor(s.id)
+                return (
+                  <li key={s.id}>
+                    <label className="pick-row">
+                      <input type="checkbox" checked={checked.includes(s.id)} onChange={() => toggle(s.id)} />
+                      <span className="pick-info">
+                        <span className="pick-name">{s.name}</span>
+                        <span className={`pick-free ${st === 'free' ? 'fit' : ''} ${st === 'busy' ? 'busy' : ''}`}>
+                          {statusText[st]}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+
+            <button className="btn avail-add" onClick={assign}>Назначить</button>
+            {msg && <p className={msg.type === 'ok' ? 'enroll-msg-ok' : 'enroll-msg-err'}>{msg.text}</p>}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

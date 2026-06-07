@@ -851,7 +851,7 @@ h1, h2, h3 {
 .shell-foot .theme-toggle,
 .shell-foot .btn-ghost { width: 100%; text-align: center; }
 
-.shell-main { padding: 36px 40px; max-width: 760px; }
+.shell-main { padding: 36px 40px; max-width: 1180px; }
 .shell-head { margin-bottom: 16px; }
 .shell-head h1 { font-size: 30px; margin-bottom: 6px; }
 
@@ -883,3 +883,105 @@ h1, h2, h3 {
   cursor: pointer;
 }
 .lesson-save:hover { background: var(--accent-strong); }
+
+/* Рабочая сетка учителя: календарь + место под чат */
+.work-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .work-grid { grid-template-columns: 1fr; }
+}
+.work-cal {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 20px 22px;
+}
+.chat-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 20px;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+}
+.chat-panel h3 { font-size: 16px; margin-bottom: 10px; }
+.chat-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+/* Статус «занят» в списке выбора */
+.pick-free.busy { color: var(--danger); }
+
+/* Кабинет ученика — сетка карточек */
+.student-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.student-grid .card { margin-top: 0; }
+.student-grid .span-2 { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  .student-grid { grid-template-columns: 1fr; }
+}
+
+/* Вкладки в сайдбаре учителя */
+.shell-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.shell-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.shell-tab:hover { background: var(--surface-2); }
+.shell-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
+.shell-tab.disabled { color: var(--text-faint); cursor: default; }
+.shell-tab.disabled:hover { background: transparent; }
+.shell-tab .soon {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* Сетка вкладки «Добавление уроков»: календарь + форма */
+.add-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .add-grid { grid-template-columns: 1fr; }
+}
+
+/* Шапка карточки ученика на вкладке «Ученики» */
+.stud-head { display: flex; align-items: center; gap: 10px; }
+.stud-head .person-name { font-size: 16px; }

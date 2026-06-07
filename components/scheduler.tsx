@@ -14,11 +14,11 @@ const fmtDate = (d: string) =>
 const TIMES: string[] = []
 for (let h = 6; h <= 23; h++) for (const m of ['00', '30']) TIMES.push(`${String(h).padStart(2, '0')}:${m}`)
 
-type Slot = { id: string; date: string; start_time: string; end_time: string }
-type Lesson = { id: string; date: string; start_time: string; end_time: string; status: string }
+type Slot = { id: string; student_id: string; date: string; start_time: string; end_time: string }
+type Lesson = { id: string; student_id: string; date: string; start_time: string; end_time: string; status: string }
+type Student = { id: string; name: string }
 
-// Панель назначения под одного выбранного ученика.
-export function Scheduler({ studentId, studentName }: { studentId: string; studentName: string }) {
+export function Scheduler({ students, viewStudentId }: { students: Student[]; viewStudentId: string }) {
   const today = new Date()
   const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate())
 
@@ -29,28 +29,22 @@ export function Scheduler({ studentId, studentName }: { studentId: string; stude
   const [selected, setSelected] = useState<string | null>(null)
   const [start, setStart] = useState('16:00')
   const [end, setEnd] = useState('18:00')
-  const [error, setError] = useState<string | null>(null)
+  const [checked, setChecked] = useState<string[]>([])
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
-  // Перенос урока
   const [editId, setEditId] = useState<string | null>(null)
   const [editStart, setEditStart] = useState('16:00')
   const [editEnd, setEditEnd] = useState('18:00')
   const [editErr, setEditErr] = useState<string | null>(null)
 
   const supabase = createClient()
+  const ids = useMemo(() => students.map((s) => s.id), [students])
 
   async function load() {
+    if (ids.length === 0) return
     const [{ data: a }, { data: l }] = await Promise.all([
-      supabase
-        .from('availability')
-        .select('id, date, start_time, end_time')
-        .eq('student_id', studentId)
-        .gte('date', todayStr),
-      supabase
-        .from('lessons')
-        .select('id, date, start_time, end_time, status')
-        .eq('student_id', studentId)
-        .gte('date', todayStr),
+      supabase.from('availability').select('id, student_id, date, start_time, end_time').in('student_id', ids).gte('date', todayStr),
+      supabase.from('lessons').select('id, student_id, date, start_time, end_time, status').in('student_id', ids).gte('date', todayStr),
     ])
     setAvail((a ?? []) as Slot[])
     setLessons((l ?? []) as Lesson[])
@@ -58,19 +52,48 @@ export function Scheduler({ studentId, studentName }: { studentId: string; stude
 
   useEffect(() => {
     load()
-    setSelected(null)
-    setError(null)
-    setEditId(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId])
+  }, [])
 
-  const availDates = useMemo(() => new Set(avail.map((a) => a.date)), [avail])
-  const lessonDates = useMemo(() => new Set(lessons.map((l) => l.date)), [lessons])
+  // Смена просматриваемого ученика — сбрасываем выбор дня.
+  useEffect(() => {
+    setSelected(null)
+    setEditId(null)
+    setMsg(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewStudentId])
 
-  const dayAvail = selected ? avail.filter((a) => a.date === selected) : []
+  // При выборе дня по умолчанию отмечаем просматриваемого ученика.
+  useEffect(() => {
+    if (selected) setChecked([viewStudentId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, viewStudentId])
+
+  const myAvail = useMemo(() => avail.filter((a) => a.student_id === viewStudentId), [avail, viewStudentId])
+  const availDates = useMemo(() => new Set(myAvail.map((a) => a.date)), [myAvail])
+  const lessonDates = useMemo(
+    () => new Set(lessons.filter((l) => l.student_id === viewStudentId).map((l) => l.date)),
+    [lessons, viewStudentId]
+  )
+
+  const dayAvail = selected ? myAvail.filter((a) => a.date === selected) : []
   const dayLessons = selected
-    ? lessons.filter((l) => l.date === selected).sort((a, b) => a.start_time.localeCompare(b.start_time))
+    ? lessons.filter((l) => l.student_id === viewStudentId && l.date === selected)
+        .sort((a, b) => a.start_time.localeCompare(b.start_time))
     : []
+
+  // Статус ученика на выбранный слот: занят / свободен / нет окна.
+  function statusFor(sid: string): 'busy' | 'free' | 'none' {
+    if (!selected) return 'none'
+    const busy = lessons.some(
+      (l) => l.student_id === sid && l.date === selected && hhmm(l.start_time) < end && hhmm(l.end_time) > start
+    )
+    if (busy) return 'busy'
+    const free = avail.some(
+      (w) => w.student_id === sid && w.date === selected && hhmm(w.start_time) <= start && hhmm(w.end_time) >= end
+    )
+    return free ? 'free' : 'none'
+  }
 
   const offset = (new Date(viewY, viewM, 1).getDay() + 6) % 7
   const daysInMonth = new Date(viewY, viewM + 1, 0).getDate()
@@ -94,75 +117,71 @@ export function Scheduler({ studentId, studentName }: { studentId: string; stude
     const ds = ymd(viewY, viewM, d)
     if (ds < todayStr) return
     setSelected(ds)
-    setError(null)
+    setMsg(null)
     setEditId(null)
-    const w = avail.find((s) => s.date === ds)
+    const w = myAvail.find((s) => s.date === ds)
     if (w) { setStart(hhmm(w.start_time)); setEnd(hhmm(w.end_time)) }
+  }
+
+  function toggle(id: string) {
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
   async function assign() {
     if (!selected) return
-    setError(null)
-    if (start >= end) { setError('Начало должно быть раньше конца'); return }
+    setMsg(null)
+    if (checked.length === 0) return setMsg({ type: 'err', text: 'Отметьте хотя бы одного ученика' })
+    if (start >= end) return setMsg({ type: 'err', text: 'Начало должно быть раньше конца' })
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { error: insErr } = await supabase.from('lessons').insert({
-      teacher_id: user.id, student_id: studentId, date: selected, start_time: start, end_time: end,
-    })
-    if (insErr) {
-      if (insErr.code === '23P01' || /no_overlap/i.test(insErr.message)) {
-        setError('У ученика уже есть урок в это время')
-      } else setError(insErr.message)
-      return
+
+    let ok = 0, conflict = 0, other = 0
+    for (const sid of checked) {
+      const { error } = await supabase.from('lessons').insert({
+        teacher_id: user.id, student_id: sid, date: selected, start_time: start, end_time: end,
+      })
+      if (error) {
+        if (error.code === '23P01' || /no_overlap/i.test(error.message)) conflict++
+        else other++
+      } else {
+        ok++
+        await supabase.rpc('create_notification', {
+          p_user_id: sid, p_text: `Новое занятие ${fmtDate(selected)} в ${start}`,
+        })
+      }
     }
-    await supabase.rpc('create_notification', {
-      p_user_id: studentId,
-      p_text: `Новое занятие ${fmtDate(selected)} в ${start}`,
-    })
+    let text = `Назначено: ${ok}`
+    if (conflict) text += `, занято: ${conflict}`
+    if (other) text += `, ошибок: ${other}`
+    setMsg({ type: ok > 0 ? 'ok' : 'err', text })
     load()
   }
 
   function startEdit(l: Lesson) {
-    setEditId(l.id)
-    setEditStart(hhmm(l.start_time))
-    setEditEnd(hhmm(l.end_time))
-    setEditErr(null)
+    setEditId(l.id); setEditStart(hhmm(l.start_time)); setEditEnd(hhmm(l.end_time)); setEditErr(null)
   }
-
   async function saveEdit(l: Lesson) {
     setEditErr(null)
     if (editStart >= editEnd) { setEditErr('Начало должно быть раньше конца'); return }
-    const { error: upErr } = await supabase
-      .from('lessons')
-      .update({ start_time: editStart, end_time: editEnd })
-      .eq('id', l.id)
-    if (upErr) {
-      if (upErr.code === '23P01' || /no_overlap/i.test(upErr.message)) {
-        setEditErr('У ученика уже есть урок в это время')
-      } else setEditErr(upErr.message)
+    const { error } = await supabase.from('lessons').update({ start_time: editStart, end_time: editEnd }).eq('id', l.id)
+    if (error) {
+      setEditErr(error.code === '23P01' || /no_overlap/i.test(error.message) ? 'У ученика уже есть урок в это время' : error.message)
       return
     }
-    await supabase.rpc('create_notification', {
-      p_user_id: studentId,
-      p_text: `Занятие ${fmtDate(l.date)} перенесено на ${editStart}`,
-    })
-    setEditId(null)
-    load()
+    await supabase.rpc('create_notification', { p_user_id: l.student_id, p_text: `Занятие ${fmtDate(l.date)} перенесено на ${editStart}` })
+    setEditId(null); load()
   }
-
-  // Отмена = урок убирается совсем (ученику уходит уведомление).
   async function cancelLesson(l: Lesson) {
     await supabase.from('lessons').delete().eq('id', l.id)
-    await supabase.rpc('create_notification', {
-      p_user_id: studentId,
-      p_text: `Занятие ${fmtDate(l.date)} в ${hhmm(l.start_time)} отменено`,
-    })
+    await supabase.rpc('create_notification', { p_user_id: l.student_id, p_text: `Занятие ${fmtDate(l.date)} в ${hhmm(l.start_time)} отменено` })
     load()
   }
 
   const selLabel = selected
     ? new Date(selected + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
     : ''
+  const statusText = { busy: 'занят', free: 'свободен', none: 'нет окна' }
 
   return (
     <div>
@@ -186,95 +205,96 @@ export function Scheduler({ studentId, studentName }: { studentId: string; stude
             return (
               <div key={ds} className={cls.join(' ')} onClick={() => pick(d)}>
                 {d}
-                {lessonDates.has(ds) ? (
-                  <span className="cal-dot" />
-                ) : availDates.has(ds) ? (
-                  <span className="cal-dot-free" />
-                ) : null}
+                {lessonDates.has(ds) ? <span className="cal-dot" /> : availDates.has(ds) ? <span className="cal-dot-free" /> : null}
               </div>
             )
           })}
         </div>
-        <p className="cal-legend">
-          <span className="leg-free" /> свободен
-          <span className="leg-busy" /> есть урок
-        </p>
+        <p className="cal-legend"><span className="leg-free" /> свободен <span className="leg-busy" /> есть урок</p>
       </div>
 
       {selected && (
         <div className="day-detail">
-          <h4>{selLabel} · {studentName}</h4>
+          <h4>{selLabel}</h4>
 
-          <p className="card-hint">Свободное время ученика:</p>
-          {dayAvail.length > 0 ? (
-            <div className="chips" style={{ marginBottom: 16 }}>
-              {dayAvail.map((s) => (
-                <button
-                  key={s.id}
-                  className="chip"
-                  onClick={() => { setStart(hhmm(s.start_time)); setEnd(hhmm(s.end_time)) }}
-                >
-                  {hhmm(s.start_time)}–{hhmm(s.end_time)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="empty" style={{ marginBottom: 16 }}>
-              В этот день ученик не отметил свободное время.
-            </p>
+          {dayAvail.length > 0 && (
+            <>
+              <p className="card-hint">Свободное время:</p>
+              <div className="chips" style={{ marginBottom: 16 }}>
+                {dayAvail.map((s) => (
+                  <button key={s.id} className="chip" onClick={() => { setStart(hhmm(s.start_time)); setEnd(hhmm(s.end_time)) }}>
+                    {hhmm(s.start_time)}–{hhmm(s.end_time)}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           <div className="avail-form">
             <div className="avail-field">
               <label>С</label>
-              <select value={start} onChange={(e) => setStart(e.target.value)}>
-                {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <select value={start} onChange={(e) => setStart(e.target.value)}>{TIMES.map((t) => <option key={t} value={t}>{t}</option>)}</select>
             </div>
             <div className="avail-field">
               <label>До</label>
-              <select value={end} onChange={(e) => setEnd(e.target.value)}>
-                {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <select value={end} onChange={(e) => setEnd(e.target.value)}>{TIMES.map((t) => <option key={t} value={t}>{t}</option>)}</select>
             </div>
-            <button className="btn avail-add" onClick={assign}>Назначить</button>
           </div>
-          {error && <p className="enroll-msg-err">{error}</p>}
+
+          <p className="card-hint" style={{ marginTop: 14 }}>Кому назначить на это время:</p>
+          <ul className="pick-list">
+            {students.map((s) => {
+              const st = statusFor(s.id)
+              return (
+                <li key={s.id}>
+                  <label className="pick-row">
+                    <input type="checkbox" checked={checked.includes(s.id)} onChange={() => toggle(s.id)} />
+                    <span className="pick-info">
+                      <span className="pick-name">{s.name}</span>
+                      <span className={`pick-free ${st === 'free' ? 'fit' : ''} ${st === 'busy' ? 'busy' : ''}`}>
+                        {statusText[st]}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+
+          <button className="btn avail-add" onClick={assign}>Назначить</button>
+          {msg && <p className={msg.type === 'ok' ? 'enroll-msg-ok' : 'enroll-msg-err'}>{msg.text}</p>}
 
           {dayLessons.length > 0 && (
-            <ul className="lesson-list" style={{ marginTop: 16 }}>
-              {dayLessons.map((l) =>
-                editId === l.id ? (
-                  <li key={l.id} className="lesson-item">
-                    <span className="lesson-edit">
-                      <select value={editStart} onChange={(e) => setEditStart(e.target.value)}>
-                        {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <span>–</span>
-                      <select value={editEnd} onChange={(e) => setEditEnd(e.target.value)}>
-                        {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </span>
-                    <span className="lesson-actions">
-                      <button className="lesson-save" onClick={() => saveEdit(l)}>Сохранить</button>
-                      <button className="lesson-cancel" onClick={() => setEditId(null)}>×</button>
-                    </span>
-                  </li>
-                ) : (
-                  <li key={l.id} className="lesson-item">
-                    <span className="lesson-when">
-                      <span className="lesson-time">{hhmm(l.start_time)}–{hhmm(l.end_time)}</span>
-                    </span>
-                    <span className="lesson-actions">
-                      <button className="lesson-cancel" onClick={() => startEdit(l)}>Изменить</button>
-                      <button className="lesson-cancel" onClick={() => cancelLesson(l)}>Отменить</button>
-                    </span>
-                  </li>
-                )
-              )}
-            </ul>
+            <>
+              <p className="card-hint" style={{ marginTop: 18 }}>Уроки {selLabel} у {students.find((s) => s.id === viewStudentId)?.name}:</p>
+              <ul className="lesson-list">
+                {dayLessons.map((l) =>
+                  editId === l.id ? (
+                    <li key={l.id} className="lesson-item">
+                      <span className="lesson-edit">
+                        <select value={editStart} onChange={(e) => setEditStart(e.target.value)}>{TIMES.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+                        <span>–</span>
+                        <select value={editEnd} onChange={(e) => setEditEnd(e.target.value)}>{TIMES.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+                      </span>
+                      <span className="lesson-actions">
+                        <button className="lesson-save" onClick={() => saveEdit(l)}>Сохранить</button>
+                        <button className="lesson-cancel" onClick={() => setEditId(null)}>×</button>
+                      </span>
+                    </li>
+                  ) : (
+                    <li key={l.id} className="lesson-item">
+                      <span className="lesson-when"><span className="lesson-time">{hhmm(l.start_time)}–{hhmm(l.end_time)}</span></span>
+                      <span className="lesson-actions">
+                        <button className="lesson-cancel" onClick={() => startEdit(l)}>Изменить</button>
+                        <button className="lesson-cancel" onClick={() => cancelLesson(l)}>Отменить</button>
+                      </span>
+                    </li>
+                  )
+                )}
+              </ul>
+              {editErr && <p className="enroll-msg-err">{editErr}</p>}
+            </>
           )}
-          {editErr && <p className="enroll-msg-err">{editErr}</p>}
         </div>
       )}
     </div>

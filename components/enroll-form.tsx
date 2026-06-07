@@ -37,7 +37,7 @@ export function EnrollForm() {
           className="enroll-input"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="Код учителя, напр. A3F9K2"
+          placeholder="Код учителя"
           maxLength={6}
         />
         <button className="btn enroll-btn" onClick={enroll} disabled={loading}>
