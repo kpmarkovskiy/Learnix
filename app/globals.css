@@ -17,8 +17,12 @@
   --text-faint:   #9a9aa2;
   --border:       #e7e7ea;
 
-  --brand-panel:  #111113;   /* брендовая панель — всегда тёмная */
-  --brand-text:   #f5f5f4;
+  --brand-bg:       #eeedea;
+  --brand-fg:       #18181b;
+  --brand-fg-soft:  rgba(24,24,27,0.70);
+  --brand-fg-faint: rgba(24,24,27,0.45);
+  --brand-dot:      rgba(0,0,0,0.05);
+  --brand-glow:     rgba(255,90,54,0.16);
 
   --accent:        #ff5a36;
   --accent-strong: #e8431f;
@@ -39,8 +43,12 @@
   --text-faint:   #6b6b72;
   --border:       #2a2a2f;
 
-  --brand-panel:  #161618;
-  --brand-text:   #f5f5f4;
+  --brand-bg:       #0c0c0e;
+  --brand-fg:       #fbfbfa;
+  --brand-fg-soft:  rgba(245,245,244,0.75);
+  --brand-fg-faint: rgba(245,245,244,0.45);
+  --brand-dot:      rgba(255,255,255,0.045);
+  --brand-glow:     rgba(255,90,54,0.22);
 
   --accent:        #ff6f4d;
   --accent-strong: #ff8467;
@@ -94,23 +102,22 @@ h1, h2, h3 {
 
 .auth-brand {
   position: relative;
-  /* Тёплое коралловое свечение в углу + почти чёрная база */
   background:
-    radial-gradient(80% 70% at 8% 92%, rgba(255,90,54,0.22) 0%, transparent 55%),
-    radial-gradient(70% 60% at 100% 0%, rgba(255,90,54,0.10) 0%, transparent 50%),
-    #0c0c0e;
-  color: #f5f5f4;
+    radial-gradient(80% 70% at 8% 92%, var(--brand-glow) 0%, transparent 55%),
+    var(--brand-bg);
+  color: var(--brand-fg);
   padding: 56px 52px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
+  border-right: 1px solid var(--border);
 }
 .auth-brand::after {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.045) 1px, transparent 1px);
+  background-image: radial-gradient(var(--brand-dot) 1px, transparent 1px);
   background-size: 24px 24px;
   pointer-events: none;
 }
@@ -120,7 +127,7 @@ h1, h2, h3 {
   font-weight: 600;
   letter-spacing: -0.02em;
   position: relative;
-  color: #f5f5f4;
+  color: var(--brand-fg);
 }
 .brand-mark span { color: var(--accent); }
 
@@ -131,7 +138,7 @@ h1, h2, h3 {
   line-height: 1.05;
   max-width: 15ch;
   position: relative;
-  color: #fbfbfa;
+  color: var(--brand-fg);
 }
 /* Коралловая акцентная линия под заголовком */
 .brand-headline::after {
@@ -148,7 +155,7 @@ h1, h2, h3 {
   margin-top: 20px;
   font-size: 16px;
   line-height: 1.6;
-  color: rgba(245,245,244,0.75);
+  color: var(--brand-fg-soft);
   max-width: 34ch;
 }
 
@@ -167,7 +174,7 @@ h1, h2, h3 {
   align-items: center;
   gap: 10px;
   font-size: 14px;
-  color: rgba(245,245,244,0.82);
+  color: var(--brand-fg-soft);
 }
 .brand-features li::before {
   content: "";
@@ -180,7 +187,7 @@ h1, h2, h3 {
 .brand-foot {
   position: relative;
   font-size: 13px;
-  color: rgba(245,245,244,0.45);
+  color: var(--brand-fg-faint);
 }
 
 .auth-panel {
@@ -571,3 +578,89 @@ h1, h2, h3 {
   font-weight: 600;
   text-transform: capitalize;
 }
+
+/* ============================================================
+   Назначение занятий (сторона учителя) + список занятий
+   ============================================================ */
+.back-link {
+  display: inline-block;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-decoration: none;
+}
+.back-link:hover { color: var(--accent); }
+
+/* Кликабельная строка ученика */
+.person-link {
+  text-decoration: none;
+  color: inherit;
+}
+.person-link:hover { border-color: var(--accent); }
+.person-chevron {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Чипы свободных окон */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .12s;
+}
+.chip:hover { border-color: var(--accent); }
+
+/* Список занятий */
+.lesson-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lesson-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.lesson-when { font-weight: 600; font-size: 15px; }
+.lesson-time { color: var(--text-soft); font-weight: 400; margin-left: 8px; }
+.lesson-actions { display: flex; align-items: center; gap: 10px; }
+.lesson-cancel {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.lesson-cancel:hover { color: var(--danger); background: var(--surface); }
+
+/* Бейджи статусов */
+.badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge-scheduled { background: var(--accent-soft); color: var(--accent-strong); }
+.badge-completed { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border); }
+.badge-cancelled { background: var(--surface); color: var(--text-faint); border: 1px solid var(--border); }
