@@ -1,26 +1,489 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Learnix — дизайн-система
+   Чёрно-белая база + коралловый акцент. Светлая и тёмная темы.
+   Тема переключается атрибутом data-theme на <html>.
+   ============================================================ */
+
+/* Светлая тема (по умолчанию) */
+:root,
+[data-theme="light"] {
+  --bg:           #fafafa;
+  --surface:      #ffffff;
+  --surface-2:    #f4f4f5;
+  --text:         #18181b;
+  --text-soft:    #6b6b72;
+  --text-faint:   #9a9aa2;
+  --border:       #e7e7ea;
+
+  --brand-panel:  #111113;   /* брендовая панель — всегда тёмная */
+  --brand-text:   #f5f5f4;
+
+  --accent:        #ff5a36;
+  --accent-strong: #e8431f;
+  --accent-soft:   #fff0ec;
+  --accent-on:     #ffffff;
+
+  --danger:       #d64545;
+  --radius:       14px;
+}
+
+/* Тёмная тема */
+[data-theme="dark"] {
+  --bg:           #0d0d0f;
+  --surface:      #161618;
+  --surface-2:    #1f1f23;
+  --text:         #fafafa;
+  --text-soft:    #a1a1aa;
+  --text-faint:   #6b6b72;
+  --border:       #2a2a2f;
+
+  --brand-panel:  #161618;
+  --brand-text:   #f5f5f4;
+
+  --accent:        #ff6f4d;
+  --accent-strong: #ff8467;
+  --accent-soft:   #2a1712;
+  --accent-on:     #ffffff;
+
+  --danger:       #f06a6a;
+}
+
+/* Аватарки — сочные, одинаковые в обеих темах */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --av-coral:  #ff5a36;
+  --av-blue:   #2f6bff;
+  --av-violet: #7c5cff;
+  --av-teal:   #0bb59b;
+  --av-amber:  #f5a524;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background .2s, color .2s;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+h1, h2, h3 {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--text);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================================
+   AUTH — две колонки
+   ============================================================ */
+.auth-shell {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  min-height: 100vh;
 }
+@media (max-width: 860px) {
+  .auth-shell { grid-template-columns: 1fr; }
+  .auth-brand { display: none; }
+}
+
+.auth-brand {
+  position: relative;
+  /* Тёплое коралловое свечение в углу + почти чёрная база */
+  background:
+    radial-gradient(80% 70% at 8% 92%, rgba(255,90,54,0.22) 0%, transparent 55%),
+    radial-gradient(70% 60% at 100% 0%, rgba(255,90,54,0.10) 0%, transparent 50%),
+    #0c0c0e;
+  color: #f5f5f4;
+  padding: 56px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+.auth-brand::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.045) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+.brand-mark {
+  font-family: var(--font-display), serif;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  position: relative;
+  color: #f5f5f4;
+}
+.brand-mark span { color: var(--accent); }
+
+/* Заголовок панели — ВСЕГДА светлый, панель тёмная в любой теме */
+.brand-headline {
+  font-family: var(--font-display), serif;
+  font-size: clamp(34px, 4vw, 50px);
+  line-height: 1.05;
+  max-width: 15ch;
+  position: relative;
+  color: #fbfbfa;
+}
+/* Коралловая акцентная линия под заголовком */
+.brand-headline::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 4px;
+  margin-top: 22px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.brand-sub {
+  position: relative;
+  margin-top: 20px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(245,245,244,0.75);
+  max-width: 34ch;
+}
+
+/* Мини-список преимуществ */
+.brand-features {
+  position: relative;
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+}
+.brand-features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(245,245,244,0.82);
+}
+.brand-features li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 6px;
+}
+.brand-foot {
+  position: relative;
+  font-size: 13px;
+  color: rgba(245,245,244,0.45);
+}
+
+.auth-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  background: var(--bg);
+}
+.auth-theme {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+}
+.auth-card { width: 100%; max-width: 380px; }
+.auth-card h1 { font-size: 30px; margin-bottom: 6px; }
+.auth-card .lead { color: var(--text-soft); font-size: 15px; margin: 0 0 28px; }
+
+.field { margin-bottom: 16px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 15px;
+  color: var(--text);
+  transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.role-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.role-option {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 14px 12px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  transition: border-color .15s, background .15s;
+}
+.role-option:hover { border-color: var(--accent); }
+.role-option.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.role-option .role-title { font-weight: 600; font-size: 14px; }
+.role-option .role-desc { font-size: 12px; color: var(--text-soft); margin-top: 2px; }
+
+.btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .05s;
+}
+.btn:hover { background: var(--accent-strong); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.auth-switch {
+  margin-top: 20px;
+  font-size: 14px;
+  color: var(--text-soft);
+  text-align: center;
+}
+.auth-switch a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.auth-switch a:hover { text-decoration: underline; }
+
+.alert {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.alert-error { background: var(--accent-soft); color: var(--danger); }
+.alert-info  { background: var(--surface-2); color: var(--text); }
+
+/* ============================================================
+   КАБИНЕТЫ
+   ============================================================ */
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.dash-header .brand-mark { color: var(--text); font-size: 22px; }
+.dash-header .brand-mark span { color: var(--accent); }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+
+.dash-main { max-width: 880px; margin: 0 auto; padding: 48px 32px; }
+.dash-main h1 { font-size: 34px; margin-bottom: 8px; }
+.dash-main .lead { color: var(--text-soft); font-size: 16px; }
+
+.role-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  margin-top: 14px;
+}
+
+/* Кнопки-«призраки»: тема, выход */
+.btn-ghost, .theme-toggle {
+  width: auto;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.btn-ghost:hover, .theme-toggle:hover {
+  background: var(--surface-2);
+  border-color: var(--text-faint);
+}
+
+/* ---------- Карточки ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-top: 22px;
+}
+.card h3 { font-size: 18px; margin-bottom: 4px; }
+.card-hint { font-size: 14px; color: var(--text-soft); margin: 0 0 16px; }
+
+/* ---------- Код приглашения ---------- */
+.code-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.code-value {
+  font-family: var(--font-display), monospace;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  padding: 10px 18px;
+  border-radius: 10px;
+}
+.copy-btn {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.copy-btn:hover { background: var(--border); }
+
+/* ---------- Списки людей ---------- */
+.people-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.person-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.person-avatar {
+  width: 38px; height: 38px; flex: 0 0 38px;
+  border-radius: 50%;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 16px;
+}
+.av-coral  { background: var(--av-coral); }
+.av-blue   { background: var(--av-blue); }
+.av-violet { background: var(--av-violet); }
+.av-teal   { background: var(--av-teal); }
+.av-amber  { background: var(--av-amber); }
+
+.person-info { display: flex; flex-direction: column; min-width: 0; }
+.person-name { font-weight: 600; font-size: 15px; color: var(--text); }
+.person-email { font-size: 13px; color: var(--text-soft); }
+
+.empty { font-size: 14px; color: var(--text-soft); margin: 0; }
+
+/* ---------- Форма записи по коду ---------- */
+.enroll-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.enroll-input {
+  flex: 1; min-width: 180px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.enroll-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.enroll-btn { width: auto; padding: 12px 20px; }
+.enroll-msg-ok  { margin: 12px 0 0; font-size: 14px; color: var(--accent-strong); }
+.enroll-msg-err { margin: 12px 0 0; font-size: 14px; color: var(--danger); }
+
+/* Автозаполнение браузера — под нашу тему (убирает голубой фон) */
+.field input:-webkit-autofill,
+.enroll-input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--text);
+  transition: background-color 9999s ease-out 0s;
+}
+
+/* ============================================================
+   Расписание — свободное время ученика
+   ============================================================ */
+.avail-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.avail-field { display: flex; flex-direction: column; gap: 5px; }
+.avail-field label { font-size: 12px; font-weight: 600; color: var(--text-soft); }
+.avail-field select,
+.avail-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+}
+.avail-field select:focus,
+.avail-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.avail-add { width: auto; padding: 11px 18px; }
+
+.avail-list {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.avail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.slot-day { font-weight: 600; }
+.slot-time { color: var(--text-soft); margin-left: 8px; }
+.avail-del {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.avail-del:hover { color: var(--danger); background: var(--surface); }
