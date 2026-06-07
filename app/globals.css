@@ -985,3 +985,7 @@ h1, h2, h3 {
 /* Шапка карточки ученика на вкладке «Ученики» */
 .stud-head { display: flex; align-items: center; gap: 10px; }
 .stud-head .person-name { font-size: 16px; }
+
+/* Бейджи типа занятия */
+.badge-ind { background: var(--surface-2); color: var(--text-soft); border: 1px solid var(--border); }
+.badge-grp { background: var(--accent-soft); color: var(--accent-strong); }
