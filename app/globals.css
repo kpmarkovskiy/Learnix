@@ -664,3 +664,105 @@ h1, h2, h3 {
 .badge-scheduled { background: var(--accent-soft); color: var(--accent-strong); }
 .badge-completed { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border); }
 .badge-cancelled { background: var(--surface); color: var(--text-faint); border: 1px solid var(--border); }
+
+/* Список выбора учеников (галочки) */
+.pick-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.pick-row:hover { border-color: var(--accent); }
+.pick-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.pick-info { display: flex; flex-direction: column; min-width: 0; }
+.pick-name { font-weight: 600; font-size: 15px; }
+.pick-free { font-size: 13px; color: var(--text-soft); }
+.pick-free.fit { color: var(--accent-strong); font-weight: 600; }
+
+/* ============================================================
+   Планировщик: слева ученики, в центре календарь
+   ============================================================ */
+.sched {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+}
+@media (max-width: 720px) {
+  .sched { grid-template-columns: 1fr; }
+}
+.sched-sidebar { display: flex; flex-direction: column; gap: 6px; }
+.sched-student {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.sched-student:hover { border-color: var(--accent); }
+.sched-student.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.sched-student .free-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  margin-left: auto;
+  flex: 0 0 7px;
+}
+.sched-main { min-width: 0; }
+.sched-empty { color: var(--text-soft); font-size: 14px; padding: 24px 0; }
+.sched-cal { max-width: 420px; }
+
+/* «Полый» маркер свободного дня на календаре */
+.cal-dot-free {
+  position: absolute;
+  bottom: 6px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1.5px solid var(--accent);
+}
+.cal-cell.selected .cal-dot-free { border-color: #fff; }
+
+/* Легенда под календарём */
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 10px;
+}
+.cal-legend .leg-free,
+.cal-legend .leg-busy {
+  width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+}
+.cal-legend .leg-free { border: 1.5px solid var(--accent); }
+.cal-legend .leg-busy { background: var(--accent); margin-left: 12px; }

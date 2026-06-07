@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const hhmm = (t: string) => t.slice(0, 5)
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+const fmtShort = (d: string) =>
+  new Date(d + 'T00:00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
 
 const TIMES: string[] = []
 for (let h = 6; h <= 23; h++) for (const m of ['00', '30']) TIMES.push(`${String(h).padStart(2, '0')}:${m}`)
@@ -15,94 +17,77 @@ const todayStr = (() => {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 })()
 
-type Slot = { id: string; date: string; start_time: string; end_time: string }
+type Slot = { id: string; student_id: string; date: string; start_time: string; end_time: string }
 type Student = { id: string; name: string }
 
 export function LessonForm({ students }: { students: Student[] }) {
-  const [studentId, setStudentId] = useState(students[0]?.id ?? '')
-  const [slots, setSlots] = useState<Slot[]>([])
-  const [date, setDate] = useState('')
+  const [avail, setAvail] = useState<Slot[]>([])
+  const [checked, setChecked] = useState<string[]>([])
+  const [date, setDate] = useState(todayStr)
   const [start, setStart] = useState('16:00')
   const [end, setEnd] = useState('18:00')
-  const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const supabase = createClient()
 
-  // Грузим свободные окна выбранного ученика.
+  // Свободное время всех учеников учителя (учитель видит его по RLS).
   useEffect(() => {
-    setDate('')
-    setError(null)
-    setOk(null)
-    if (!studentId) {
-      setSlots([])
-      return
-    }
+    const ids = students.map((s) => s.id)
+    if (ids.length === 0) return
     supabase
       .from('availability')
-      .select('id, date, start_time, end_time')
-      .eq('student_id', studentId)
+      .select('id, student_id, date, start_time, end_time')
+      .in('student_id', ids)
       .gte('date', todayStr)
       .order('date')
       .order('start_time')
-      .then(({ data }) => setSlots((data ?? []) as Slot[]))
+      .then(({ data }) => setAvail((data ?? []) as Slot[]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId])
+  }, [])
 
-  // Доступные даты — только те, где у ученика есть окна.
-  const dates = useMemo(() => Array.from(new Set(slots.map((s) => s.date))), [slots])
-  const daySlots = date ? slots.filter((s) => s.date === date) : []
-
-  // При выборе даты подставляем время первого окна.
-  useEffect(() => {
-    const w = slots.find((s) => s.date === date)
-    if (w) {
-      setStart(hhmm(w.start_time))
-      setEnd(hhmm(w.end_time))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date])
+  function toggle(id: string) {
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
 
   async function schedule() {
-    setError(null)
-    setOk(null)
-    if (!studentId) return setError('Выберите ученика')
-    if (!date) return setError('Выберите дату')
-    if (start >= end) return setError('Начало должно быть раньше конца')
-
-    // Время должно целиком помещаться в одно свободное окно.
-    const inWindow = daySlots.some(
-      (s) => hhmm(s.start_time) <= start && hhmm(s.end_time) >= end
-    )
-    if (!inWindow) return setError('Это время вне свободных окон ученика')
+    setMsg(null)
+    if (checked.length === 0) return setMsg({ type: 'err', text: 'Отметьте хотя бы одного ученика' })
+    if (!date) return setMsg({ type: 'err', text: 'Выберите дату' })
+    if (start >= end) return setMsg({ type: 'err', text: 'Начало должно быть раньше конца' })
 
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
 
-    const { error: insErr } = await supabase.from('lessons').insert({
-      teacher_id: user.id,
-      student_id: studentId,
-      date,
-      start_time: start,
-      end_time: end,
-    })
-    if (insErr) {
-      if (insErr.code === '23P01' || /no_overlap/i.test(insErr.message)) {
-        setError('На это время уже есть занятие')
-      } else if (/свободн/i.test(insErr.message)) {
-        setError('Это время вне свободных окон ученика')
+    let ok = 0
+    let conflict = 0
+    let other = 0
+
+    for (const sid of checked) {
+      const { error } = await supabase.from('lessons').insert({
+        teacher_id: user.id,
+        student_id: sid,
+        date,
+        start_time: start,
+        end_time: end,
+      })
+      if (error) {
+        if (error.code === '23P01' || /no_overlap/i.test(error.message)) conflict++
+        else other++
       } else {
-        setError(insErr.message)
+        ok++
+        await supabase.rpc('create_notification', {
+          p_user_id: sid,
+          p_text: `Новое занятие ${fmtDate(date)} в ${start}`,
+        })
       }
-      return
     }
 
-    await supabase.rpc('create_notification', {
-      p_user_id: studentId,
-      p_text: `Новое занятие ${fmtDate(date)} в ${start}`,
-    })
-    setOk('Урок назначен')
+    let text = `Назначено: ${ok}`
+    if (conflict) text += `, конфликт по времени: ${conflict}`
+    if (other) text += `, ошибок: ${other}`
+    setMsg({ type: ok > 0 ? 'ok' : 'err', text })
+    if (ok > 0) setChecked([])
   }
 
   if (students.length === 0) {
@@ -113,21 +98,8 @@ export function LessonForm({ students }: { students: Student[] }) {
     <div>
       <div className="avail-form">
         <div className="avail-field">
-          <label>Ученик</label>
-          <select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="avail-field">
           <label>Дата</label>
-          <select value={date} onChange={(e) => setDate(e.target.value)}>
-            <option value="">— выберите —</option>
-            {dates.map((d) => (
-              <option key={d} value={d}>{fmtDate(d)}</option>
-            ))}
-          </select>
+          <input type="date" min={todayStr} value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="avail-field">
           <label>С</label>
@@ -145,24 +117,52 @@ export function LessonForm({ students }: { students: Student[] }) {
             ))}
           </select>
         </div>
-        <button className="btn avail-add" onClick={schedule}>
-          Назначить
-        </button>
       </div>
 
-      {studentId && dates.length === 0 && (
-        <p className="empty" style={{ marginTop: 12 }}>
-          Этот ученик ещё не указал свободное время.
-        </p>
-      )}
-      {date && daySlots.length > 0 && (
-        <p className="card-hint" style={{ marginTop: 12 }}>
-          Свободно: {daySlots.map((s) => `${hhmm(s.start_time)}–${hhmm(s.end_time)}`).join(', ')}
-        </p>
-      )}
+      <p className="card-hint" style={{ marginTop: 14 }}>Кому назначить:</p>
+      <ul className="pick-list">
+        {students.map((s) => {
+          const slots = avail.filter((a) => a.student_id === s.id)
+          const day = date ? slots.filter((a) => a.date === date) : []
+          const fit = day.some((w) => hhmm(w.start_time) <= start && hhmm(w.end_time) >= end)
 
-      {error && <p className="enroll-msg-err">{error}</p>}
-      {ok && <p className="enroll-msg-ok">{ok}</p>}
+          let free: string
+          if (date) {
+            free = day.length
+              ? day.map((w) => `${hhmm(w.start_time)}–${hhmm(w.end_time)}`).join(', ')
+              : 'в этот день окон не отмечено'
+          } else {
+            free = slots.length
+              ? slots.slice(0, 3).map((w) => `${fmtShort(w.date)} ${hhmm(w.start_time)}–${hhmm(w.end_time)}`).join(' · ')
+              : 'нет свободных окон'
+          }
+
+          return (
+            <li key={s.id}>
+              <label className="pick-row">
+                <input
+                  type="checkbox"
+                  checked={checked.includes(s.id)}
+                  onChange={() => toggle(s.id)}
+                />
+                <span className="pick-info">
+                  <span className="pick-name">{s.name}</span>
+                  <span className={`pick-free ${date && fit ? 'fit' : ''}`}>
+                    {date && fit ? '✓ свободен · ' : ''}
+                    {free}
+                  </span>
+                </span>
+              </label>
+            </li>
+          )
+        })}
+      </ul>
+
+      <button className="btn avail-add" onClick={schedule}>
+        Назначить
+      </button>
+
+      {msg && <p className={msg.type === 'ok' ? 'enroll-msg-ok' : 'enroll-msg-err'}>{msg.text}</p>}
     </div>
   )
 }
