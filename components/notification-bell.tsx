@@ -60,26 +60,34 @@ export function NotificationBell() {
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
     ;(async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user || cancelled) return
       const { data } = await supabase
         .from('notifications')
         .select('id, text, is_read, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(30)
+      if (cancelled) return
       setItems((data ?? []) as Note[])
+
+      const topic = `notif-${user.id}-${Math.random().toString(36).slice(2)}`
       channel = supabase
-        .channel('notifications-bell')
+        .channel(topic)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
           (payload) => setItems((prev) => [payload.new as Note, ...prev].slice(0, 30))
         )
         .subscribe()
+      if (cancelled) { supabase.removeChannel(channel); channel = null }
     })()
-    return () => { if (channel) supabase.removeChannel(channel) }
+    return () => {
+      cancelled = true
+      if (channel) supabase.removeChannel(channel)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
