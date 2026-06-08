@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 type Theme = 'light' | 'dark'
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('light')
+  const [theme, setTheme] = useState<Theme | null>(null)
 
   useEffect(() => {
     // Узнаём текущую тему, которую уже выставил скрипт в layout.
@@ -34,8 +34,8 @@ export function ThemeToggle() {
   }
 
   return (
-    <button className="theme-toggle" onClick={toggle} aria-label="Сменить тему">
-      {theme === 'dark' ? 'Светлая' : 'Тёмная'}
+    <button className="theme-toggle" onClick={toggle} aria-label="Сменить тему" suppressHydrationWarning>
+      {theme === null ? '◐' : theme === 'dark' ? 'Светлая' : 'Тёмная'}
     </button>
   )
 }
