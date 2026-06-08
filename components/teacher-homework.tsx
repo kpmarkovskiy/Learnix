@@ -16,6 +16,7 @@ type Submission = {
   student_id: string
   comment: string | null
   submitted_at: string
+  teacher_feedback: string | null
 }
 type Student = { id: string; name: string }
 
@@ -31,6 +32,10 @@ export function TeacherHomework({ students }: { students: Student[] }) {
   const [deadline, setDeadline] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // Подтверждение удаления задания
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  // Обратная связь: { [submissionId]: { open: bool, text: string, saving: bool } }
+  const [feedbackState, setFeedbackState] = useState<Record<string, { open: boolean; text: string; saving: boolean }>>({})
   const supabase = createClient()
 
   async function load() {
@@ -45,7 +50,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
     const { data: sb } = hwIds.length > 0
       ? await supabase
           .from('homework_submissions')
-          .select('id, homework_id, student_id, comment, submitted_at')
+          .select('id, homework_id, student_id, comment, submitted_at, teacher_feedback')
           .in('homework_id', hwIds)
       : { data: [] }
     setList((hw ?? []) as HW[])
@@ -82,8 +87,29 @@ export function TeacherHomework({ students }: { students: Student[] }) {
     setSaving(false)
   }
 
-  async function remove(id: string) {
+  async function confirmRemove(id: string) {
+    setConfirmDeleteId(null)
     await supabase.from('homework').delete().eq('id', id)
+    load()
+  }
+
+  async function saveFeedback(sub: Submission) {
+    const fb = feedbackState[sub.id]
+    if (!fb) return
+    setFeedbackState(prev => ({ ...prev, [sub.id]: { ...prev[sub.id], saving: true } }))
+    await supabase
+      .from('homework_submissions')
+      .update({ teacher_feedback: fb.text.trim() || null })
+      .eq('id', sub.id)
+    // Уведомить ученика
+    const hw = list.find(h => h.id === sub.homework_id)
+    if (hw) {
+      await supabase.rpc('create_notification', {
+        p_user_id: sub.student_id,
+        p_text: `Учитель оставил отзыв к заданию «${hw.title}»`,
+      })
+    }
+    setFeedbackState(prev => ({ ...prev, [sub.id]: { ...prev[sub.id], saving: false, open: false } }))
     load()
   }
 
@@ -94,6 +120,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
 
   return (
     <div style={{ maxWidth: 680 }}>
+      {/* Форма создания задания */}
       <div className="card">
         <h3>Новое задание</h3>
         <div className="field" style={{ marginTop: 12 }}>
@@ -124,7 +151,13 @@ export function TeacherHomework({ students }: { students: Student[] }) {
       </div>
 
       {list.length === 0 ? (
-        <p className="empty" style={{ marginTop: 20 }}>Заданий пока нет.</p>
+        <div style={{ textAlign: 'center', padding: '40px 20px', marginTop: 16 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+          <p className="empty">Заданий пока нет.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-faint)', margin: '4px 0 0' }}>
+            Создайте первое задание выше.
+          </p>
+        </div>
       ) : (
         list.map((hw) => {
           const hwSubs = subsFor(hw.id)
@@ -134,7 +167,8 @@ export function TeacherHomework({ students }: { students: Student[] }) {
             : false
 
           return (
-            <div className="card" key={hw.id}>
+            <div className="card" key={hw.id} style={{ marginTop: 16 }}>
+              {/* Шапка задания */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                 <div>
                   <h3 style={{ marginBottom: 4 }}>{hw.title}</h3>
@@ -154,9 +188,36 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                     </span>
                   </div>
                 </div>
-                <button className="lesson-cancel" onClick={() => remove(hw.id)}>Удалить</button>
+                {/* Кнопка удаления с подтверждением */}
+                {confirmDeleteId === hw.id ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>Точно удалить?</span>
+                    <button
+                      style={{
+                        padding: '4px 12px', borderRadius: 8, border: 'none',
+                        background: 'var(--danger)', color: '#fff',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      }}
+                      onClick={() => confirmRemove(hw.id)}
+                    >
+                      Да
+                    </button>
+                    <button className="lesson-cancel" onClick={() => setConfirmDeleteId(null)}>
+                      Нет
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="lesson-cancel"
+                    style={{ flexShrink: 0 }}
+                    onClick={() => setConfirmDeleteId(hw.id)}
+                  >
+                    Удалить
+                  </button>
+                )}
               </div>
 
+              {/* Прогресс и список учеников */}
               {students.length > 0 && (
                 <div style={{ marginTop: 14 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-soft)', margin: '0 0 8px' }}>
@@ -174,26 +235,106 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                   <ul className="lesson-list">
                     {students.map((s) => {
                       const sub = hwSubs.find((x) => x.student_id === s.id)
+                      const fb = feedbackState[sub?.id ?? '']
                       return (
-                        <li key={s.id} className="lesson-item">
-                          <span className="lesson-when" style={{ fontWeight: 500 }}>{nameOf(s.id)}</span>
-                          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                            {sub ? (
-                              <>
-                                <span className="badge badge-scheduled">Сдано</span>
-                                {sub.comment && (
-                                  <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 220, textAlign: 'right' }}>
-                                    {sub.comment}
-                                  </span>
+                        <li key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                          <div className="lesson-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                            {/* Строка ученик + статус */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span className="lesson-when" style={{ fontWeight: 500 }}>{nameOf(s.id)}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                                {sub ? (
+                                  <span className="badge badge-scheduled">Сдано</span>
+                                ) : (
+                                  <span className="badge badge-cancelled">Не сдано</span>
                                 )}
-                                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                                  {new Date(sub.submitted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="badge badge-cancelled">Не сдано</span>
+                              </div>
+                            </div>
+
+                            {/* Если сдано — показываем детали */}
+                            {sub && (
+                              <div style={{
+                                padding: '10px 12px',
+                                background: 'var(--surface-2)',
+                                borderRadius: 8,
+                              }}>
+                                {sub.comment && (
+                                  <p style={{ margin: '0 0 6px', fontSize: 13, color: 'var(--text)' }}>
+                                    <span style={{ color: 'var(--text-faint)', fontWeight: 600 }}>Ответ: </span>
+                                    {sub.comment}
+                                  </p>
+                                )}
+                                <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--text-faint)' }}>
+                                  Сдано {new Date(sub.submitted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                                </p>
+
+                                {/* Отзыв учителя */}
+                                {sub.teacher_feedback && !fb?.open && (
+                                  <div style={{
+                                    padding: '8px 10px',
+                                    background: 'var(--accent-soft)',
+                                    borderRadius: 8,
+                                    marginBottom: 6,
+                                    border: '1px solid var(--accent)',
+                                  }}>
+                                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: 'var(--accent-strong)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                                      Ваш отзыв
+                                    </p>
+                                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text)' }}>{sub.teacher_feedback}</p>
+                                  </div>
+                                )}
+
+                                {/* Форма отзыва */}
+                                {fb?.open ? (
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                    <textarea
+                                      rows={2}
+                                      placeholder="Напишите отзыв на работу ученика…"
+                                      value={fb.text}
+                                      onChange={e => setFeedbackState(prev => ({
+                                        ...prev,
+                                        [sub.id]: { ...prev[sub.id], text: e.target.value },
+                                      }))}
+                                      style={{
+                                        flex: 1, minWidth: 180, padding: '8px 10px',
+                                        border: '1px solid var(--border)', borderRadius: 8,
+                                        background: 'var(--surface)', color: 'var(--text)',
+                                        fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
+                                      }}
+                                    />
+                                    <button
+                                      className="lesson-save"
+                                      style={{ padding: '8px 14px', fontSize: 13 }}
+                                      disabled={fb.saving}
+                                      onClick={() => saveFeedback(sub)}
+                                    >
+                                      {fb.saving ? '…' : 'Сохранить'}
+                                    </button>
+                                    <button
+                                      className="lesson-cancel"
+                                      onClick={() => setFeedbackState(prev => ({
+                                        ...prev,
+                                        [sub.id]: { ...prev[sub.id], open: false },
+                                      }))}
+                                    >
+                                      Отмена
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="lesson-cancel"
+                                    style={{ fontSize: 12 }}
+                                    onClick={() => setFeedbackState(prev => ({
+                                      ...prev,
+                                      [sub.id]: { open: true, text: sub.teacher_feedback ?? '', saving: false },
+                                    }))}
+                                  >
+                                    {sub.teacher_feedback ? 'Изменить отзыв' : '+ Написать отзыв'}
+                                  </button>
+                                )}
+                              </div>
                             )}
-                          </span>
+                          </div>
                         </li>
                       )
                     })}

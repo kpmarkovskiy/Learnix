@@ -15,6 +15,7 @@ type Lesson = {
   status: string
 }
 type Student = { id: string; name: string }
+type RescheduleVals = { date: string; start: string; end: string }
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   scheduled: { label: 'Запланировано', cls: 'badge-scheduled' },
@@ -72,6 +73,12 @@ export function TeacherLessons({ students }: { students: Student[] }) {
   const [loading, setLoading] = useState(true)
   const [showPast, setShowPast] = useState(false)
   const [filterStudentId, setFilterStudentId] = useState<string>('all')
+  // Подтверждение удаления: хранит id урока, ожидающего подтверждения
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  // Перенос урока: id переносимого урока + новые значения
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null)
+  const [rescheduleVals, setRescheduleVals] = useState<RescheduleVals>({ date: '', start: '', end: '' })
+  const [rescheduleSaving, setRescheduleSaving] = useState(false)
   const supabase = createClient()
 
   const today = getToday()
@@ -113,13 +120,39 @@ export function TeacherLessons({ students }: { students: Student[] }) {
     load()
   }
 
-  async function remove(l: Lesson) {
+  async function confirmRemove(l: Lesson) {
+    setConfirmDeleteId(null)
     await supabase.from('lessons').delete().eq('id', l.id)
     const dateLabel = new Date(l.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
     await supabase.rpc('create_notification', {
       p_user_id: l.student_id,
       p_text: `Занятие ${dateLabel} в ${hhmm(l.start_time)} удалено`,
     })
+    load()
+  }
+
+  function startReschedule(l: Lesson) {
+    setRescheduleId(l.id)
+    setRescheduleVals({ date: l.date, start: hhmm(l.start_time), end: hhmm(l.end_time) })
+    setConfirmDeleteId(null)
+  }
+
+  async function doReschedule(l: Lesson) {
+    if (!rescheduleVals.date || !rescheduleVals.start || !rescheduleVals.end) return
+    if (rescheduleVals.start >= rescheduleVals.end) return
+    setRescheduleSaving(true)
+    await supabase.from('lessons').update({
+      date: rescheduleVals.date,
+      start_time: rescheduleVals.start + ':00',
+      end_time:   rescheduleVals.end   + ':00',
+    }).eq('id', l.id)
+    const dateLabel = new Date(rescheduleVals.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    await supabase.rpc('create_notification', {
+      p_user_id: l.student_id,
+      p_text: `Занятие перенесено на ${dateLabel} в ${rescheduleVals.start}–${rescheduleVals.end}`,
+    })
+    setRescheduleId(null)
+    setRescheduleSaving(false)
     load()
   }
 
@@ -292,46 +325,154 @@ export function TeacherLessons({ students }: { students: Student[] }) {
               </h3>
               <ul className="lesson-list">
                 {grouped[d].map(l => (
-                  <li
-                    key={l.id}
-                    className="lesson-item"
-                    style={{
-                      background: isToday ? 'var(--surface)' : undefined,
-                    }}
-                  >
-                    <span className="lesson-when">
-                      {nameOf(l.student_id)}
-                      <span className="lesson-time">{hhmm(l.start_time)}–{hhmm(l.end_time)}</span>
-                      <span
-                        className={`badge ${l.lesson_type === 'group' ? 'badge-grp' : 'badge-ind'}`}
-                        style={{ marginLeft: 8 }}
-                      >
-                        {l.lesson_type === 'group' ? 'Групповое' : 'Индивид.'}
-                      </span>
-                    </span>
-                    <span className="lesson-actions">
-                      {l.status === 'scheduled' ? (
-                        <>
+                  <li key={l.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+                    {/* Режим переноса */}
+                    {rescheduleId === l.id ? (
+                      <div style={{
+                        padding: '12px 14px',
+                        border: '1px solid var(--accent)',
+                        borderRadius: 10,
+                        background: 'var(--accent-soft)',
+                      }}>
+                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--accent-strong)' }}>
+                          Перенос урока · {nameOf(l.student_id)}
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)' }}>Дата</span>
+                            <input
+                              type="date"
+                              value={rescheduleVals.date}
+                              min={today}
+                              onChange={e => setRescheduleVals(v => ({ ...v, date: e.target.value }))}
+                              style={{
+                                padding: '7px 10px', border: '1px solid var(--border)',
+                                borderRadius: 8, background: 'var(--surface)',
+                                color: 'var(--text)', fontSize: 13,
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)' }}>Начало</span>
+                            <input
+                              type="time"
+                              value={rescheduleVals.start}
+                              onChange={e => setRescheduleVals(v => ({ ...v, start: e.target.value }))}
+                              style={{
+                                padding: '7px 10px', border: '1px solid var(--border)',
+                                borderRadius: 8, background: 'var(--surface)',
+                                color: 'var(--text)', fontSize: 13,
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)' }}>Конец</span>
+                            <input
+                              type="time"
+                              value={rescheduleVals.end}
+                              onChange={e => setRescheduleVals(v => ({ ...v, end: e.target.value }))}
+                              style={{
+                                padding: '7px 10px', border: '1px solid var(--border)',
+                                borderRadius: 8, background: 'var(--surface)',
+                                color: 'var(--text)', fontSize: 13,
+                              }}
+                            />
+                          </div>
                           <button
                             className="lesson-save"
-                            style={{ fontSize: 13, padding: '5px 12px' }}
-                            onClick={() => setStatus(l, 'completed')}
+                            style={{ padding: '8px 14px', fontSize: 13 }}
+                            onClick={() => doReschedule(l)}
+                            disabled={rescheduleSaving}
                           >
-                            Провёл
+                            {rescheduleSaving ? '…' : 'Сохранить'}
                           </button>
-                          <button className="lesson-cancel" onClick={() => setStatus(l, 'cancelled')}>
-                            Отменил
+                          <button
+                            className="lesson-cancel"
+                            onClick={() => setRescheduleId(null)}
+                          >
+                            Отмена
                           </button>
-                          <button className="lesson-cancel" onClick={() => remove(l)}>
-                            Удалить
-                          </button>
-                        </>
-                      ) : (
-                        <span className={`badge ${STATUS_META[l.status]?.cls}`}>
-                          {STATUS_META[l.status]?.label}
-                        </span>
-                      )}
-                    </span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Обычный вид урока */
+                      <div
+                        className="lesson-item"
+                        style={{ background: isToday ? 'var(--surface)' : undefined, flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <span className="lesson-when">
+                            {nameOf(l.student_id)}
+                            <span className="lesson-time">{hhmm(l.start_time)}–{hhmm(l.end_time)}</span>
+                            <span
+                              className={`badge ${l.lesson_type === 'group' ? 'badge-grp' : 'badge-ind'}`}
+                              style={{ marginLeft: 8 }}
+                            >
+                              {l.lesson_type === 'group' ? 'Групповое' : 'Индивид.'}
+                            </span>
+                          </span>
+                          <span className="lesson-actions">
+                            {l.status === 'scheduled' ? (
+                              <>
+                                <button
+                                  className="lesson-save"
+                                  style={{ fontSize: 13, padding: '5px 12px' }}
+                                  onClick={() => { setStatus(l, 'completed'); setConfirmDeleteId(null) }}
+                                >
+                                  Провёл
+                                </button>
+                                <button className="lesson-cancel" onClick={() => { setStatus(l, 'cancelled'); setConfirmDeleteId(null) }}>
+                                  Отменил
+                                </button>
+                                <button className="lesson-cancel" style={{ color: 'var(--text-soft)' }} onClick={() => startReschedule(l)}>
+                                  Перенести
+                                </button>
+                                <button
+                                  className="lesson-cancel"
+                                  style={{ color: confirmDeleteId === l.id ? 'var(--danger)' : undefined }}
+                                  onClick={() => setConfirmDeleteId(confirmDeleteId === l.id ? null : l.id)}
+                                >
+                                  Удалить
+                                </button>
+                              </>
+                            ) : (
+                              <span className={`badge ${STATUS_META[l.status]?.cls}`}>
+                                {STATUS_META[l.status]?.label}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Подтверждение удаления — инлайн под строкой */}
+                        {confirmDeleteId === l.id && (
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 10px',
+                            background: 'var(--surface-2)',
+                            borderRadius: 8,
+                            border: '1px solid var(--danger)',
+                          }}>
+                            <span style={{ fontSize: 13, color: 'var(--text-soft)', flex: 1 }}>
+                              Удалить урок? Это действие нельзя отменить.
+                            </span>
+                            <button
+                              style={{
+                                padding: '5px 14px', borderRadius: 8, border: 'none',
+                                background: 'var(--danger)', color: '#fff',
+                                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                              }}
+                              onClick={() => confirmRemove(l)}
+                            >
+                              Да, удалить
+                            </button>
+                            <button className="lesson-cancel" onClick={() => setConfirmDeleteId(null)}>
+                              Отмена
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

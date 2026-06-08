@@ -96,6 +96,7 @@ export function StudentTabs({
   const [tab, setTab] = useState<Tab>('schedule')
   const [showHistory, setShowHistory] = useState(false)
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [pendingHwCount, setPendingHwCount] = useState<number>(0)
   const supabase = createClient()
 
   async function loadLessons() {
@@ -112,14 +113,28 @@ export function StudentTabs({
     setLessons(mapped as Lesson[])
   }
 
+  async function loadPendingHw() {
+    const { data: hw } = await supabase.from('homework').select('id')
+    const { data: subs } = await supabase
+      .from('homework_submissions')
+      .select('homework_id')
+      .eq('student_id', currentUserId)
+    const submittedIds = new Set((subs ?? []).map((s: { homework_id: string }) => s.homework_id))
+    const pending = (hw ?? []).filter((h: { id: string }) => !submittedIds.has(h.id))
+    setPendingHwCount(pending.length)
+  }
+
   useEffect(() => {
     loadLessons()
+    loadPendingHw()
     const channel = supabase
       .channel('student-lessons-' + currentUserId)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'lessons',
         filter: `student_id=eq.${currentUserId}`,
       }, () => loadLessons())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions' }, () => loadPendingHw())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'homework' }, () => loadPendingHw())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,6 +168,19 @@ export function StudentTabs({
             onClick={() => setTab(t.id)}
           >
             {t.label}
+            {t.id === 'homework' && pendingHwCount > 0 && (
+              <span style={{
+                marginLeft: 5,
+                fontSize: 11, fontWeight: 700,
+                background: tab === t.id ? 'var(--accent)' : 'var(--danger)',
+                color: '#fff',
+                borderRadius: 999,
+                padding: '1px 6px',
+                lineHeight: 1.5,
+              }}>
+                {pendingHwCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>

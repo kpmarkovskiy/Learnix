@@ -1260,8 +1260,13 @@ h1, h2, h3 {
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.student-tabs-nav::-webkit-scrollbar { display: none; }
 .student-tab-btn {
+  flex-shrink: 0;
   padding: 9px 18px;
   border: none;
   border-bottom: 2px solid transparent;
@@ -1272,6 +1277,9 @@ h1, h2, h3 {
   cursor: pointer;
   transition: color .12s, border-color .12s;
   margin-bottom: -1px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
 }
 .student-tab-btn:hover { color: var(--text); }
 .student-tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent); }

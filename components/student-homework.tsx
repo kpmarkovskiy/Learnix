@@ -15,6 +15,7 @@ type Sub = {
   homework_id: string
   comment: string | null
   submitted_at: string
+  teacher_feedback: string | null
 }
  
 const fmtDate = (d: string) =>
@@ -43,7 +44,7 @@ export function StudentHomework() {
         .order('created_at', { ascending: false }),
       supabase
         .from('homework_submissions')
-        .select('id, homework_id, comment, submitted_at')
+        .select('id, homework_id, comment, submitted_at, teacher_feedback')
         .eq('student_id', user.id),
     ])
     setList((hw ?? []) as HW[])
@@ -198,14 +199,29 @@ function HwCard({
       </div>
  
       {sub ? (
-        <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 10 }}>
-          {sub.comment && <p style={{ margin: '0 0 8px', fontSize: 14 }}>{sub.comment}</p>}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-              Сдано {new Date(sub.submitted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-            </span>
-            <button className="lesson-cancel" onClick={() => onUnsubmit(hw.id)}>Отменить сдачу</button>
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 10 }}>
+            {sub.comment && <p style={{ margin: '0 0 8px', fontSize: 14 }}>{sub.comment}</p>}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+                Сдано {new Date(sub.submitted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+              </span>
+              <button className="lesson-cancel" onClick={() => onUnsubmit(hw.id)}>Отменить сдачу</button>
+            </div>
           </div>
+          {sub.teacher_feedback && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'var(--accent-soft)',
+              border: '1px solid var(--accent)',
+              borderRadius: 10,
+            }}>
+              <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: 'var(--accent-strong)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                Отзыв учителя
+              </p>
+              <p style={{ margin: 0, fontSize: 14, color: 'var(--text)' }}>{sub.teacher_feedback}</p>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
