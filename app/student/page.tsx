@@ -21,9 +21,6 @@ export default async function StudentPage() {
 
   if (profile?.role !== 'student') redirect('/teacher')
 
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-
   const { data: teachers } = await supabase
     .from('enrollments')
     .select('id, teacher:profiles!enrollments_teacher_id_fkey(id, name, email)')
@@ -33,7 +30,6 @@ export default async function StudentPage() {
     .from('lessons')
     .select('id, date, start_time, end_time, status, teacher:profiles!lessons_teacher_id_fkey(name)')
     .eq('student_id', user.id)
-    .gte('date', todayStr)
     .order('date')
     .order('start_time')
 

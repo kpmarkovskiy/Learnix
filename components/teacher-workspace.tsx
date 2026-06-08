@@ -6,17 +6,19 @@ import { SignOutButton } from '@/components/sign-out-button'
 import { TeacherStudents } from '@/components/teacher-students'
 import { TeacherAddLesson } from '@/components/teacher-add-lesson'
 import { TeacherLessons } from '@/components/teacher-lessons'
+import { TeacherHomework } from '@/components/teacher-homework'
 import { NotificationBell } from '@/components/notification-bell'
 import { Chat } from '@/components/chat'
 
 type Student = { id: string; name: string; email: string }
-type Tab = 'students' | 'add' | 'lessons' | 'chat'
+type Tab = 'students' | 'add' | 'lessons' | 'homework' | 'chat'
 
 const NAV: { id: Tab; label: string }[] = [
   { id: 'students', label: 'Ученики' },
-  { id: 'add', label: 'Добавление уроков' },
-  { id: 'lessons', label: 'Просмотр уроков' },
-  { id: 'chat', label: 'Чат' },
+  { id: 'add',      label: 'Добавление уроков' },
+  { id: 'lessons',  label: 'Просмотр уроков' },
+  { id: 'homework', label: 'Задания' },
+  { id: 'chat',     label: 'Чат' },
 ]
 
 export function TeacherWorkspace({
@@ -65,10 +67,11 @@ export function TeacherWorkspace({
           {tab === 'students' && <p className="lead">Здравствуйте, {name}</p>}
         </header>
 
-        {tab === 'students' && <TeacherStudents students={slim} inviteCode={inviteCode} />}
-        {tab === 'add' && <TeacherAddLesson students={slim} />}
-        {tab === 'lessons' && <TeacherLessons students={slim} />}
-        {tab === 'chat' && <Chat peers={slim} currentUserId={currentUserId} />}
+        {tab === 'students'  && <TeacherStudents students={slim} inviteCode={inviteCode} />}
+        {tab === 'add'       && <TeacherAddLesson students={slim} />}
+        {tab === 'lessons'   && <TeacherLessons students={slim} />}
+        {tab === 'homework'  && <TeacherHomework students={slim} />}
+        {tab === 'chat'      && <Chat peers={slim} currentUserId={currentUserId} />}
       </main>
     </div>
   )
