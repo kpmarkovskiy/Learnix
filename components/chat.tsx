@@ -185,22 +185,20 @@ export function Chat({ peers, currentUserId }: { peers: Peer[]; currentUserId: s
         </div>
 
         <div className="chat-input-row">
-          <textarea
-  ref={textareaRef}
-  className="chat-input"
-  value={text}
-  onChange={handleInput}
-  onKeyDown={onKey}
-  placeholder="Сообщение… (Enter — отправить)"
-  rows={1}
-/>
-          <button
-  onClick={send}
-  disabled={!text.trim()}
->
-  Отправить
-</button>
-        </div>
+  <textarea
+    className="chat-input"
+    value={text}
+    onChange={(e) => setText(e.target.value)}
+  />
+
+  <button
+    onClick={send}
+    disabled={!text.trim()}
+    className="chat-send-btn"
+  >
+    Отправить
+  </button>
+</div>
       </div>
     </div>
   )
