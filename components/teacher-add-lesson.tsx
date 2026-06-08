@@ -60,6 +60,22 @@ export function TeacherAddLesson({ students }: { students: Student[] }) {
   }
   useEffect(() => {
     load()
+
+    const channel = supabase
+      .channel('teacher-add-lesson-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lessons' },
+        () => load()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'availability' },
+        () => load()
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

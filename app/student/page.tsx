@@ -26,13 +26,6 @@ export default async function StudentPage() {
     .select('id, teacher:profiles!enrollments_teacher_id_fkey(id, name, email)')
     .eq('student_id', user.id)
 
-  const { data: lessons } = await supabase
-    .from('lessons')
-    .select('id, date, start_time, end_time, status, teacher:profiles!lessons_teacher_id_fkey(name)')
-    .eq('student_id', user.id)
-    .order('date')
-    .order('start_time')
-
   const teacherList = (teachers ?? [])
     .map((r: any) => ({ id: r.teacher?.id, name: r.teacher?.name }))
     .filter((t: any) => t.id)
@@ -50,11 +43,9 @@ export default async function StudentPage() {
 
       <main className="dash-main">
         <h1>Привет, {profile?.name || 'ученик'}</h1>
-        <p className="lead">Ваше расписание и задания</p>
 
         <div className="student-top-tabs">
           <StudentTabs
-            lessons={lessons ?? []}
             teachers={teacherList}
             currentUserId={user.id}
           />

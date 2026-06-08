@@ -1,6 +1,7 @@
 'use client'
  
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { EnrollForm } from '@/components/enroll-form'
 import { AvailabilityManager } from '@/components/availability-manager'
 import { Chat } from '@/components/chat'
@@ -45,16 +46,51 @@ const TABS: { id: Tab; label: string }[] = [
 ]
  
 export function StudentTabs({
-  lessons,
   teachers,
   currentUserId,
 }: {
-  lessons: Lesson[]
   teachers: Teacher[]
   currentUserId: string
 }) {
   const [tab, setTab] = useState<Tab>('schedule')
- 
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const supabase = createClient()
+
+  async function loadLessons() {
+    const { data } = await supabase
+      .from('lessons')
+      .select('id, date, start_time, end_time, status, teacher:profiles!lessons_teacher_id_fkey(name)')
+      .eq('student_id', currentUserId)
+      .order('date')
+      .order('start_time')
+    const mapped = (data ?? []).map((l: any) => ({
+      ...l,
+      teacher: Array.isArray(l.teacher) ? l.teacher[0] : l.teacher,
+    }))
+    setLessons(mapped as Lesson[])
+  }
+
+  useEffect(() => {
+    loadLessons()
+
+    const channel = supabase
+      .channel('student-lessons-' + currentUserId)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lessons',
+          filter: `student_id=eq.${currentUserId}`,
+        },
+        () => loadLessons()
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId])
+
   return (
     <div>
       <nav className="student-tabs-nav">

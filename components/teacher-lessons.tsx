@@ -58,7 +58,24 @@ export function TeacherLessons({ students }: { students: Student[] }) {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    load()
+
+    const ids = students.map((s) => s.id)
+    if (ids.length === 0) return
+
+    const channel = supabase
+      .channel('teacher-lessons-view')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lessons' },
+        () => load()
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function setStatus(l: Lesson, status: 'completed' | 'cancelled') {
     await supabase.from('lessons').update({ status }).eq('id', l.id)
