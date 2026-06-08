@@ -14,7 +14,7 @@ type Lesson = {
 function getNextLesson(lessons: Lesson[]): Lesson | null {
   const now = new Date()
   const upcoming = lessons
-    .filter((l) => l.status !== 'cancelled')
+    .filter((l) => l.status === 'scheduled')
     .filter((l) => {
       // считаем урок "идущим" пока не закончился (end_time)
       const end = new Date(`${l.date}T${l.end_time}`)
