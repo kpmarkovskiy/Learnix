@@ -50,6 +50,7 @@ export default async function StudentPage() {
 
       <main className="dash-main">
         <h1>Привет, {profile?.name || 'ученик'}</h1>
+        <p className="lead">Ваше расписание и задания</p>
 
         <div className="student-top-tabs">
           <StudentTabs
