@@ -1,11 +1,11 @@
 @import "tailwindcss";
-
+ 
 /* ============================================================
    Learnix — дизайн-система
    Чёрно-белая база + коралловый акцент. Светлая и тёмная темы.
    Тема переключается атрибутом data-theme на <html>.
    ============================================================ */
-
+ 
 /* Светлая тема (по умолчанию) */
 :root,
 [data-theme="light"] {
@@ -16,23 +16,23 @@
   --text-soft:    #6b6b72;
   --text-faint:   #9a9aa2;
   --border:       #e7e7ea;
-
+ 
   --brand-bg:       #eeedea;
   --brand-fg:       #18181b;
   --brand-fg-soft:  rgba(24,24,27,0.70);
   --brand-fg-faint: rgba(24,24,27,0.45);
   --brand-dot:      rgba(0,0,0,0.05);
   --brand-glow:     rgba(255,90,54,0.16);
-
+ 
   --accent:        #ff5a36;
   --accent-strong: #e8431f;
   --accent-soft:   #fff0ec;
   --accent-on:     #ffffff;
-
+ 
   --danger:       #d64545;
   --radius:       14px;
 }
-
+ 
 /* Тёмная тема */
 [data-theme="dark"] {
   --bg:           #0d0d0f;
@@ -42,22 +42,22 @@
   --text-soft:    #a1a1aa;
   --text-faint:   #6b6b72;
   --border:       #2a2a2f;
-
+ 
   --brand-bg:       #0c0c0e;
   --brand-fg:       #fbfbfa;
   --brand-fg-soft:  rgba(245,245,244,0.75);
   --brand-fg-faint: rgba(245,245,244,0.45);
   --brand-dot:      rgba(255,255,255,0.045);
   --brand-glow:     rgba(255,90,54,0.22);
-
+ 
   --accent:        #ff6f4d;
   --accent-strong: #ff8467;
   --accent-soft:   #2a1712;
   --accent-on:     #ffffff;
-
+ 
   --danger:       #f06a6a;
 }
-
+ 
 /* Аватарки — сочные, одинаковые в обеих темах */
 :root {
   --av-coral:  #ff5a36;
@@ -66,9 +66,9 @@
   --av-teal:   #0bb59b;
   --av-amber:  #f5a524;
 }
-
+ 
 * { box-sizing: border-box; }
-
+ 
 html, body {
   margin: 0;
   padding: 0;
@@ -78,7 +78,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
   transition: background .2s, color .2s;
 }
-
+ 
 h1, h2, h3 {
   font-family: var(--font-display), Georgia, serif;
   font-weight: 500;
@@ -86,7 +86,7 @@ h1, h2, h3 {
   margin: 0;
   color: var(--text);
 }
-
+ 
 /* ============================================================
    AUTH — две колонки
    ============================================================ */
@@ -99,7 +99,7 @@ h1, h2, h3 {
   .auth-shell { grid-template-columns: 1fr; }
   .auth-brand { display: none; }
 }
-
+ 
 .auth-brand {
   position: relative;
   background:
@@ -130,7 +130,7 @@ h1, h2, h3 {
   color: var(--brand-fg);
 }
 .brand-mark span { color: var(--accent); }
-
+ 
 /* Заголовок панели — ВСЕГДА светлый, панель тёмная в любой теме */
 .brand-headline {
   font-family: var(--font-display), serif;
@@ -158,7 +158,7 @@ h1, h2, h3 {
   color: var(--brand-fg-soft);
   max-width: 34ch;
 }
-
+ 
 /* Мини-список преимуществ */
 .brand-features {
   position: relative;
@@ -189,7 +189,7 @@ h1, h2, h3 {
   font-size: 13px;
   color: var(--brand-fg-faint);
 }
-
+ 
 .auth-panel {
   position: relative;
   display: flex;
@@ -206,7 +206,7 @@ h1, h2, h3 {
 .auth-card { width: 100%; max-width: 380px; }
 .auth-card h1 { font-size: 30px; margin-bottom: 6px; }
 .auth-card .lead { color: var(--text-soft); font-size: 15px; margin: 0 0 28px; }
-
+ 
 .field { margin-bottom: 16px; }
 .field label {
   display: block;
@@ -230,7 +230,7 @@ h1, h2, h3 {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-
+ 
 .role-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -255,7 +255,7 @@ h1, h2, h3 {
 }
 .role-option .role-title { font-weight: 600; font-size: 14px; }
 .role-option .role-desc { font-size: 12px; color: var(--text-soft); margin-top: 2px; }
-
+ 
 .btn {
   width: 100%;
   padding: 13px;
@@ -271,7 +271,7 @@ h1, h2, h3 {
 .btn:hover { background: var(--accent-strong); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
-
+ 
 .auth-switch {
   margin-top: 20px;
   font-size: 14px;
@@ -280,7 +280,7 @@ h1, h2, h3 {
 }
 .auth-switch a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
-
+ 
 .alert {
   padding: 10px 12px;
   border-radius: 10px;
@@ -289,7 +289,7 @@ h1, h2, h3 {
 }
 .alert-error { background: var(--accent-soft); color: var(--danger); }
 .alert-info  { background: var(--surface-2); color: var(--text); }
-
+ 
 /* ============================================================
    КАБИНЕТЫ
    ============================================================ */
@@ -304,11 +304,11 @@ h1, h2, h3 {
 .dash-header .brand-mark { color: var(--text); font-size: 22px; }
 .dash-header .brand-mark span { color: var(--accent); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
-
+ 
 .dash-main { max-width: 880px; margin: 0 auto; padding: 48px 32px; }
 .dash-main h1 { font-size: 34px; margin-bottom: 8px; }
 .dash-main .lead { color: var(--text-soft); font-size: 16px; }
-
+ 
 .role-badge {
   display: inline-block;
   font-size: 12px;
@@ -319,7 +319,7 @@ h1, h2, h3 {
   color: var(--accent-strong);
   margin-top: 14px;
 }
-
+ 
 /* Кнопки-«призраки»: тема, выход */
 .btn-ghost, .theme-toggle {
   width: auto;
@@ -337,7 +337,7 @@ h1, h2, h3 {
   background: var(--surface-2);
   border-color: var(--text-faint);
 }
-
+ 
 /* ---------- Карточки ---------- */
 .card {
   background: var(--surface);
@@ -348,7 +348,7 @@ h1, h2, h3 {
 }
 .card h3 { font-size: 18px; margin-bottom: 4px; }
 .card-hint { font-size: 14px; color: var(--text-soft); margin: 0 0 16px; }
-
+ 
 /* ---------- Код приглашения ---------- */
 .code-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .code-value {
@@ -373,7 +373,7 @@ h1, h2, h3 {
   transition: background .15s;
 }
 .copy-btn:hover { background: var(--border); }
-
+ 
 /* ---------- Списки людей ---------- */
 .people-list {
   list-style: none; margin: 0; padding: 0;
@@ -398,13 +398,13 @@ h1, h2, h3 {
 .av-violet { background: var(--av-violet); }
 .av-teal   { background: var(--av-teal); }
 .av-amber  { background: var(--av-amber); }
-
+ 
 .person-info { display: flex; flex-direction: column; min-width: 0; }
 .person-name { font-weight: 600; font-size: 15px; color: var(--text); }
 .person-email { font-size: 13px; color: var(--text-soft); }
-
+ 
 .empty { font-size: 14px; color: var(--text-soft); margin: 0; }
-
+ 
 /* ---------- Форма записи по коду ---------- */
 .enroll-form { display: flex; gap: 10px; flex-wrap: wrap; }
 .enroll-input {
@@ -426,7 +426,7 @@ h1, h2, h3 {
 .enroll-btn { width: auto; padding: 12px 20px; }
 .enroll-msg-ok  { margin: 12px 0 0; font-size: 14px; color: var(--accent-strong); }
 .enroll-msg-err { margin: 12px 0 0; font-size: 14px; color: var(--danger); }
-
+ 
 /* Автозаполнение браузера — под нашу тему (убирает голубой фон) */
 .field input:-webkit-autofill,
 .enroll-input:-webkit-autofill {
@@ -435,7 +435,7 @@ h1, h2, h3 {
   caret-color: var(--text);
   transition: background-color 9999s ease-out 0s;
 }
-
+ 
 /* ============================================================
    Расписание — свободное время ученика
    ============================================================ */
@@ -463,7 +463,7 @@ h1, h2, h3 {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .avail-add { width: auto; padding: 11px 18px; }
-
+ 
 .avail-list {
   list-style: none;
   margin: 18px 0 0;
@@ -494,7 +494,7 @@ h1, h2, h3 {
   border-radius: 6px;
 }
 .avail-del:hover { color: var(--danger); background: var(--surface); }
-
+ 
 /* ============================================================
    Календарь свободного времени
    ============================================================ */
@@ -519,7 +519,7 @@ h1, h2, h3 {
 }
 .cal-nav button:hover:not(:disabled) { border-color: var(--accent); }
 .cal-nav button:disabled { opacity: .4; cursor: not-allowed; }
-
+ 
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -565,7 +565,7 @@ h1, h2, h3 {
   background: var(--accent);
 }
 .cal-cell.selected .cal-dot { background: #fff; }
-
+ 
 .day-detail {
   margin-top: 18px;
   border-top: 1px solid var(--border);
@@ -578,7 +578,7 @@ h1, h2, h3 {
   font-weight: 600;
   text-transform: capitalize;
 }
-
+ 
 /* ============================================================
    Назначение занятий (сторона учителя) + список занятий
    ============================================================ */
@@ -591,7 +591,7 @@ h1, h2, h3 {
   text-decoration: none;
 }
 .back-link:hover { color: var(--accent); }
-
+ 
 /* Кликабельная строка ученика */
 .person-link {
   text-decoration: none;
@@ -604,7 +604,7 @@ h1, h2, h3 {
   font-size: 20px;
   line-height: 1;
 }
-
+ 
 /* Чипы свободных окон */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -618,7 +618,7 @@ h1, h2, h3 {
   transition: border-color .12s;
 }
 .chip:hover { border-color: var(--accent); }
-
+ 
 /* Список занятий */
 .lesson-list {
   list-style: none;
@@ -652,7 +652,7 @@ h1, h2, h3 {
   border-radius: 6px;
 }
 .lesson-cancel:hover { color: var(--danger); background: var(--surface); }
-
+ 
 /* Бейджи статусов */
 .badge {
   font-size: 12px;
@@ -664,7 +664,7 @@ h1, h2, h3 {
 .badge-scheduled { background: var(--accent-soft); color: var(--accent-strong); }
 .badge-completed { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border); }
 .badge-cancelled { background: var(--surface); color: var(--text-faint); border: 1px solid var(--border); }
-
+ 
 /* Список выбора учеников (галочки) */
 .pick-list {
   list-style: none;
@@ -696,7 +696,7 @@ h1, h2, h3 {
 .pick-name { font-weight: 600; font-size: 15px; }
 .pick-free { font-size: 13px; color: var(--text-soft); }
 .pick-free.fit { color: var(--accent-strong); font-weight: 600; }
-
+ 
 /* ============================================================
    Планировщик: слева ученики, в центре календарь
    ============================================================ */
@@ -739,7 +739,7 @@ h1, h2, h3 {
 .sched-main { min-width: 0; }
 .sched-empty { color: var(--text-soft); font-size: 14px; padding: 24px 0; }
 .sched-cal { max-width: 420px; }
-
+ 
 /* «Полый» маркер свободного дня на календаре */
 .cal-dot-free {
   position: absolute;
@@ -750,7 +750,7 @@ h1, h2, h3 {
   border: 1.5px solid var(--accent);
 }
 .cal-cell.selected .cal-dot-free { border-color: #fff; }
-
+ 
 /* Легенда под календарём */
 .cal-legend {
   display: flex;
@@ -766,7 +766,7 @@ h1, h2, h3 {
 }
 .cal-legend .leg-free { border: 1.5px solid var(--accent); }
 .cal-legend .leg-busy { background: var(--accent); margin-left: 12px; }
-
+ 
 /* ============================================================
    Раскладка кабинета учителя: сайдбар слева + рабочая область
    ============================================================ */
@@ -850,18 +850,18 @@ h1, h2, h3 {
 }
 .shell-foot .theme-toggle,
 .shell-foot .btn-ghost { width: 100%; text-align: center; }
-
+ 
 .shell-main { padding: 36px 40px; max-width: 1180px; }
 .shell-head { margin-bottom: 16px; }
 .shell-head h1 { font-size: 30px; margin-bottom: 6px; }
-
+ 
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
   .shell-students { flex-direction: row; flex-wrap: wrap; }
   .shell-student { width: auto; }
   .shell-main { padding: 24px 20px; }
 }
-
+ 
 /* Перенос урока (инлайн-редактирование времени) */
 .lesson-edit { display: flex; align-items: center; gap: 8px; }
 .lesson-edit select {
@@ -883,7 +883,7 @@ h1, h2, h3 {
   cursor: pointer;
 }
 .lesson-save:hover { background: var(--accent-strong); }
-
+ 
 /* Рабочая сетка учителя: календарь + место под чат */
 .work-grid {
   display: grid;
@@ -922,10 +922,10 @@ h1, h2, h3 {
   border-radius: 10px;
   padding: 20px;
 }
-
+ 
 /* Статус «занят» в списке выбора */
 .pick-free.busy { color: var(--danger); }
-
+ 
 /* Кабинет ученика — сетка карточек */
 .student-grid {
   display: grid;
@@ -938,7 +938,7 @@ h1, h2, h3 {
 @media (max-width: 760px) {
   .student-grid { grid-template-columns: 1fr; }
 }
-
+ 
 /* Вкладки в сайдбаре учителя */
 .shell-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .shell-tab {
@@ -970,7 +970,7 @@ h1, h2, h3 {
   border-radius: 999px;
   padding: 1px 8px;
 }
-
+ 
 /* Сетка вкладки «Добавление уроков»: календарь + форма */
 .add-grid {
   display: grid;
@@ -981,15 +981,15 @@ h1, h2, h3 {
 @media (max-width: 860px) {
   .add-grid { grid-template-columns: 1fr; }
 }
-
+ 
 /* Шапка карточки ученика на вкладке «Ученики» */
 .stud-head { display: flex; align-items: center; gap: 10px; }
 .stud-head .person-name { font-size: 16px; }
-
+ 
 /* Бейджи типа занятия */
 .badge-ind { background: var(--surface-2); color: var(--text-soft); border: 1px solid var(--border); }
 .badge-grp { background: var(--accent-soft); color: var(--accent-strong); }
-
+ 
 /* Колокольчик уведомлений */
 .shell-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .bell { position: relative; }
@@ -1055,7 +1055,7 @@ h1, h2, h3 {
 .bell-item:last-child { border-bottom: none; }
 .bell-text { font-size: 14px; color: var(--text); }
 .bell-time { font-size: 12px; color: var(--text-faint); }
-
+ 
 /* ── Chat ─────────────────────────────────────────────── */
 .chat-layout {
   display: grid;
@@ -1190,34 +1190,47 @@ h1, h2, h3 {
   background: var(--surface);
 }
 .chat-input {
-  flex: 1;          /* занимает всё свободное место */
-  min-width: 0;     /* важно для flex, иначе ломается */
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  overflow-y: hidden;
+  min-height: 42px;
+  max-height: 160px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: border-color .15s;
 }
 .chat-input:focus { outline: none; border-color: var(--accent); }
 .chat-send-btn {
   flex-shrink: 0;   /* НЕ сжимается */
   
   padding: 12px 18px;
-
+ 
   background: linear-gradient(135deg, #ff5a36, #ff6f4d);
   color: white;
-
+ 
   border: none;
   border-radius: 14px;
-
+ 
   font-size: 14px;
   font-weight: 600;
-
+ 
   cursor: pointer;
-
+ 
   display: flex;
   align-items: center;
   justify-content: center;
-
+ 
   white-space: nowrap;
-
+ 
   box-shadow: 0 6px 18px rgba(255, 90, 54, 0.25);
-
+ 
   transition: all 0.2s ease;
 }
 .chat-send-btn:hover {
@@ -1239,7 +1252,7 @@ h1, h2, h3 {
   .chat-peers { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--border); }
   .chat-messages { min-height: 300px; }
 }
-
+ 
 /* ── Student tabs nav ──────────────────────────────────── */
 .student-tabs-nav {
   display: flex;
@@ -1263,4 +1276,3 @@ h1, h2, h3 {
 .student-tab-btn:hover { color: var(--text); }
 .student-tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent); }
 .student-tab-content { padding-top: 4px; }
-
