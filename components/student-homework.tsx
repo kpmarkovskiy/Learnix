@@ -1,8 +1,8 @@
 'use client'
-
+ 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
+ 
 type HW = {
   id: string
   title: string
@@ -16,15 +16,15 @@ type Sub = {
   comment: string | null
   submitted_at: string
 }
-
+ 
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-
+ 
 function isOverdue(deadline: string | null) {
   if (!deadline) return false
   return new Date(deadline) < new Date(new Date().toDateString())
 }
-
+ 
 export function StudentHomework() {
   const [list, setList] = useState<HW[]>([])
   const [subs, setSubs] = useState<Sub[]>([])
@@ -32,7 +32,7 @@ export function StudentHomework() {
   const [comments, setComments] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState<string | null>(null)
   const supabase = createClient()
-
+ 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -50,9 +50,9 @@ export function StudentHomework() {
     setSubs((sb ?? []) as Sub[])
     setLoading(false)
   }
-
+ 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
+ 
   async function submit(hwId: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -75,22 +75,66 @@ export function StudentHomework() {
     load()
     setSubmitting(null)
   }
-
+ 
   async function unsubmit(hwId: string) {
     const existing = subs.find((s) => s.homework_id === hwId)
     if (!existing) return
     await supabase.from('homework_submissions').delete().eq('id', existing.id)
     load()
   }
-
+ 
   if (loading) return <p className="empty">Загрузка…</p>
   if (list.length === 0) return <p className="empty">Заданий от учителей пока нет.</p>
-
+ 
   const pending = list.filter((hw) => !subs.find((s) => s.homework_id === hw.id))
-  const done = list.filter((hw) => subs.find((s) => s.homework_id === hw.id))
-
+  const done    = list.filter((hw) =>  subs.find((s) => s.homework_id === hw.id))
+  const overduePending = pending.filter((hw) => isOverdue(hw.deadline))
+  const pct = list.length > 0 ? Math.round((done.length / list.length) * 100) : 0
+  const streakEmoji = pct === 100 ? '🏆' : pct >= 75 ? '🔥' : pct >= 50 ? '✨' : pct >= 25 ? '📚' : '🌱'
+ 
   return (
     <div style={{ maxWidth: 680 }}>
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '18px 20px',
+        marginBottom: 20,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+            {streakEmoji} Прогресс по заданиям
+          </span>
+          <span style={{ fontSize: 22, fontWeight: 700, color: pct === 100 ? 'var(--accent)' : 'var(--text)', letterSpacing: '-0.02em' }}>
+            {pct}%
+          </span>
+        </div>
+        <div style={{ height: 8, background: 'var(--surface-2)', borderRadius: 999, overflow: 'hidden', marginBottom: 14 }}>
+          <div style={{
+            height: '100%',
+            width: `${pct}%`,
+            background: pct === 100 ? 'var(--accent)' : overduePending.length > 0 ? 'var(--danger)' : 'var(--accent)',
+            borderRadius: 999,
+            transition: 'width .5s ease',
+          }} />
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>
+            <strong style={{ color: 'var(--accent-strong)', fontWeight: 700 }}>{done.length}</strong> сдано
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>
+            <strong style={{ color: 'var(--text)', fontWeight: 700 }}>{pending.length - overduePending.length}</strong> ожидает
+          </span>
+          {overduePending.length > 0 && (
+            <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>
+              <strong style={{ color: 'var(--danger)', fontWeight: 700 }}>{overduePending.length}</strong> просрочено
+            </span>
+          )}
+          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>
+            <strong style={{ color: 'var(--text)', fontWeight: 700 }}>{list.length}</strong> всего
+          </span>
+        </div>
+      </div>
       {pending.length > 0 && (
         <>
           <h4 style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-faint)', marginBottom: 10 }}>
@@ -99,7 +143,7 @@ export function StudentHomework() {
           {pending.map((hw) => <HwCard key={hw.id} hw={hw} sub={null} comments={comments} setComments={setComments} submitting={submitting} onSubmit={submit} onUnsubmit={unsubmit} />)}
         </>
       )}
-
+ 
       {done.length > 0 && (
         <>
           <h4 style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-faint)', margin: '24px 0 10px' }}>
@@ -111,7 +155,7 @@ export function StudentHomework() {
     </div>
   )
 }
-
+ 
 function HwCard({
   hw, sub, comments, setComments, submitting, onSubmit, onUnsubmit,
 }: {
@@ -124,7 +168,7 @@ function HwCard({
   onUnsubmit: (id: string) => void
 }) {
   const overdue = isOverdue(hw.deadline)
-
+ 
   return (
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -152,7 +196,7 @@ function HwCard({
           </span>
         )}
       </div>
-
+ 
       {sub ? (
         <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 10 }}>
           {sub.comment && <p style={{ margin: '0 0 8px', fontSize: 14 }}>{sub.comment}</p>}

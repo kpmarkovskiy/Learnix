@@ -5,6 +5,7 @@ import { EnrollForm } from '@/components/enroll-form'
 import { AvailabilityManager } from '@/components/availability-manager'
 import { Chat } from '@/components/chat'
 import { NextLessonCountdown } from '@/components/next-lesson-countdown'
+import { StudentHomework } from '@/components/student-homework'
  
 type Lesson = {
   id: string
@@ -15,7 +16,7 @@ type Lesson = {
   teacher?: { name: string }
 }
 type Teacher = { id: string; name: string }
-type Tab = 'schedule' | 'availability' | 'teachers' | 'chat'
+type Tab = 'schedule' | 'availability' | 'teachers' | 'homework' | 'chat'
  
 const hhmm = (t: string) => t.slice(0, 5)
 const fmtDate = (d: string) =>
@@ -23,8 +24,8 @@ const fmtDate = (d: string) =>
  
 const STATUS: Record<string, { label: string; cls: string }> = {
   scheduled: { label: 'Запланировано', cls: 'badge-scheduled' },
-  completed: { label: 'Проведено', cls: 'badge-completed' },
-  cancelled: { label: 'Отменено', cls: 'badge-cancelled' },
+  completed:  { label: 'Проведено',    cls: 'badge-completed' },
+  cancelled:  { label: 'Отменено',     cls: 'badge-cancelled' },
 }
  
 const AV = ['av-coral', 'av-blue', 'av-violet', 'av-teal', 'av-amber']
@@ -36,10 +37,11 @@ function avatarClass(name?: string) {
 }
  
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'schedule', label: 'Расписание' },
+  { id: 'schedule',     label: 'Расписание' },
   { id: 'availability', label: 'Моё время' },
-  { id: 'teachers', label: 'Учителя' },
-  { id: 'chat', label: 'Чат' },
+  { id: 'teachers',     label: 'Учителя' },
+  { id: 'homework',     label: 'Задания' },
+  { id: 'chat',         label: 'Чат' },
 ]
  
 export function StudentTabs({
@@ -140,10 +142,17 @@ export function StudentTabs({
         </div>
       )}
  
+      {tab === 'homework' && (
+        <div className="student-tab-content">
+          <StudentHomework />
+        </div>
+      )}
+ 
       {tab === 'chat' && (
         <div className="student-tab-content">
           <Chat peers={teachers} currentUserId={currentUserId} />
         </div>
       )}
     </div>
-  ) } 
+  )
+}
