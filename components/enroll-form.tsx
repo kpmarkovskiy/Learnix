@@ -37,6 +37,7 @@ export function EnrollForm() {
           className="enroll-input"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === 'Enter' && enroll()}
           placeholder="Код учителя"
           maxLength={6}
         />
