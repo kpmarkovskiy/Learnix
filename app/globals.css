@@ -1253,6 +1253,3 @@ h1, h2, h3 {
 .student-tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent); }
 .student-tab-content { padding-top: 4px; }
 
-body {
-  background: red !important;
-}
