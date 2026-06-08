@@ -146,4 +146,4 @@ export function StudentTabs({
         </div>
       )}
     </div>
-  )
+  ) } 

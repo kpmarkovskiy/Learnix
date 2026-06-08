@@ -26,6 +26,7 @@ export function Chat({ peers, currentUserId }: { peers: Peer[]; currentUserId: s
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const supabase = createClient()
 
   async function loadMessages(peerId: string) {
@@ -37,7 +38,7 @@ export function Chat({ peers, currentUserId }: { peers: Peer[]; currentUserId: s
         `and(sender_id.eq.${currentUserId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${currentUserId})`
       )
       .order('created_at')
-    setMessages((data ?? []) as Message[])
+    setMessages((data ?? []) as unknown as Message[])
     setLoading(false)
   }
 
@@ -83,6 +84,10 @@ export function Chat({ peers, currentUserId }: { peers: Peer[]; currentUserId: s
     if (!text.trim() || !activePeer) return
     const t = text.trim()
     setText('')
+
+    if (textareaRef.current) {
+  textareaRef.current.style.height = 'auto'
+}
     await supabase.from('messages').insert({
       sender_id: currentUserId,
       receiver_id: activePeer.id,
@@ -96,12 +101,19 @@ export function Chat({ peers, currentUserId }: { peers: Peer[]; currentUserId: s
     })
   }
 
+  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+  setText(e.target.value)
+
+  e.target.style.height = 'auto'
+  e.target.style.height = `${e.target.scrollHeight}px`
+}
+
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    send()
   }
+}
 
   if (peers.length === 0) {
     return (
@@ -174,16 +186,20 @@ export function Chat({ peers, currentUserId }: { peers: Peer[]; currentUserId: s
 
         <div className="chat-input-row">
           <textarea
-            className="chat-input"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKey}
-            placeholder="Сообщение… (Enter — отправить)"
-            rows={1}
-          />
-          <button className="btn chat-send-btn" onClick={send} disabled={!text.trim()}>
-            Отправить
-          </button>
+  ref={textareaRef}
+  className="chat-input"
+  value={text}
+  onChange={handleInput}
+  onKeyDown={onKey}
+  placeholder="Сообщение… (Enter — отправить)"
+  rows={1}
+/>
+          <button
+  onClick={send}
+  disabled={!text.trim()}
+>
+  Отправить
+</button>
         </div>
       </div>
     </div>
