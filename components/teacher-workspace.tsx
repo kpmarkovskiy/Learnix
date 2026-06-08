@@ -9,9 +9,10 @@ import { TeacherLessons } from '@/components/teacher-lessons'
 import { TeacherHomework } from '@/components/teacher-homework'
 import { NotificationBell } from '@/components/notification-bell'
 import { Chat } from '@/components/chat'
+import { ProfileEdit } from '@/components/profile-edit'
 
 type Student = { id: string; name: string; email: string }
-type Tab = 'students' | 'add' | 'lessons' | 'homework' | 'chat'
+type Tab = 'students' | 'add' | 'lessons' | 'homework' | 'chat' | 'profile'
 
 const NAV: { id: Tab; label: string }[] = [
   { id: 'students', label: 'Ученики' },
@@ -19,6 +20,7 @@ const NAV: { id: Tab; label: string }[] = [
   { id: 'lessons',  label: 'Просмотр уроков' },
   { id: 'homework', label: 'Задания' },
   { id: 'chat',     label: 'Чат' },
+  { id: 'profile',  label: 'Профиль' },
 ]
 
 export function TeacherWorkspace({
@@ -72,6 +74,7 @@ export function TeacherWorkspace({
         {tab === 'lessons'   && <TeacherLessons students={slim} />}
         {tab === 'homework'  && <TeacherHomework students={slim} />}
         {tab === 'chat'      && <Chat peers={slim} currentUserId={currentUserId} />}
+        {tab === 'profile'   && <ProfileEdit />}
       </main>
     </div>
   )

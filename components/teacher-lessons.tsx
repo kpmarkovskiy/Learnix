@@ -71,6 +71,7 @@ export function TeacherLessons({ students }: { students: Student[] }) {
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(true)
   const [showPast, setShowPast] = useState(false)
+  const [filterStudentId, setFilterStudentId] = useState<string>('all')
   const supabase = createClient()
 
   const today = getToday()
@@ -122,18 +123,23 @@ export function TeacherLessons({ students }: { students: Student[] }) {
     load()
   }
 
-  // Статистика по всем урокам
-  const total = lessons.length
-  const completed = lessons.filter(l => l.status === 'completed').length
-  const cancelled = lessons.filter(l => l.status === 'cancelled').length
-  const scheduled = lessons.filter(l => l.status === 'scheduled').length
+  // Применяем фильтр по ученику
+  const filtered = filterStudentId === 'all'
+    ? lessons
+    : lessons.filter(l => l.student_id === filterStudentId)
+
+  // Статистика по отфильтрованным урокам
+  const total = filtered.length
+  const completed = filtered.filter(l => l.status === 'completed').length
+  const cancelled = filtered.filter(l => l.status === 'cancelled').length
+  const scheduled = filtered.filter(l => l.status === 'scheduled').length
   const resolved = completed + cancelled
   const pct = resolved > 0 ? Math.round((completed / resolved) * 100) : 0
 
   // Предстоящие: будущие запланированные (включая сегодня)
-  const upcoming = lessons.filter(l => l.date >= today && l.status === 'scheduled')
+  const upcoming = filtered.filter(l => l.date >= today && l.status === 'scheduled')
   // История: прошедшие ИЛИ завершённые/отменённые
-  const past = lessons.filter(l => l.date < today || l.status !== 'scheduled')
+  const past = filtered.filter(l => l.date < today || l.status !== 'scheduled')
 
   function groupByDate(list: Lesson[]) {
     const map: Record<string, Lesson[]> = {}
@@ -157,6 +163,40 @@ export function TeacherLessons({ students }: { students: Student[] }) {
 
   return (
     <div style={{ maxWidth: 700 }}>
+      {/* Фильтр по ученику */}
+      {students.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-soft)', fontWeight: 500 }}>Ученик:</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setFilterStudentId('all')}
+              style={{
+                padding: '5px 14px', borderRadius: 999, border: '1px solid var(--border)',
+                background: filterStudentId === 'all' ? 'var(--accent)' : 'var(--surface)',
+                color: filterStudentId === 'all' ? 'var(--accent-on)' : 'var(--text)',
+                fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all .15s',
+              }}
+            >
+              Все
+            </button>
+            {students.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setFilterStudentId(s.id)}
+                style={{
+                  padding: '5px 14px', borderRadius: 999, border: '1px solid var(--border)',
+                  background: filterStudentId === s.id ? 'var(--accent)' : 'var(--surface)',
+                  color: filterStudentId === s.id ? 'var(--accent-on)' : 'var(--text)',
+                  fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all .15s',
+                }}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Карточка статистики */}
       {total > 0 && (
         <div className="card" style={{ marginBottom: 20 }}>

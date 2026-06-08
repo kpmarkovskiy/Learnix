@@ -7,6 +7,7 @@ import { AvailabilityManager } from '@/components/availability-manager'
 import { Chat } from '@/components/chat'
 import { NextLessonCountdown } from '@/components/next-lesson-countdown'
 import { StudentHomework } from '@/components/student-homework'
+import { ProfileEdit } from '@/components/profile-edit'
 
 type Lesson = {
   id: string
@@ -17,7 +18,7 @@ type Lesson = {
   teacher?: { name: string }
 }
 type Teacher = { id: string; name: string }
-type Tab = 'schedule' | 'availability' | 'teachers' | 'homework' | 'chat'
+type Tab = 'schedule' | 'availability' | 'teachers' | 'homework' | 'chat' | 'profile'
 
 const hhmm = (t: string) => t.slice(0, 5)
 
@@ -82,6 +83,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'teachers',     label: 'Учителя' },
   { id: 'homework',     label: 'Задания' },
   { id: 'chat',         label: 'Чат' },
+  { id: 'profile',      label: 'Профиль' },
 ]
 
 export function StudentTabs({
@@ -394,6 +396,13 @@ export function StudentTabs({
       {tab === 'chat' && (
         <div className="student-tab-content">
           <Chat peers={teachers} currentUserId={currentUserId} />
+        </div>
+      )}
+
+      {/* ── Профиль ── */}
+      {tab === 'profile' && (
+        <div className="student-tab-content">
+          <ProfileEdit />
         </div>
       )}
     </div>
