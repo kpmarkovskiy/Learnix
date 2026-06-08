@@ -134,6 +134,7 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
               placeholder="Минимум 6 символов"
             />
           </div>
