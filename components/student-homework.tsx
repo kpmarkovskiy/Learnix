@@ -11,6 +11,7 @@ type HW = {
   description: string | null
   deadline: string | null
   teacher?: { name: string }
+  attachments: Attachment[]
 }
 type Sub = {
   id: string
@@ -36,17 +37,17 @@ const STATUS_META = {
   rejected:  { label: 'На доработку', cls: 'badge-cancelled' },
 }
 
-function AttachIcon({ a }: { a: Attachment }) {
-  if (a.type === 'link') return <span>🔗</span>
-  const mime = a.mime ?? ''
+function AttachIcon({ mime }: { mime?: string }) {
+  if (!mime) return <span>🔗</span>
   if (mime.startsWith('image/')) return <span>🖼️</span>
   if (mime.startsWith('video/')) return <span>🎬</span>
   if (mime.startsWith('audio/')) return <span>🎵</span>
-  if (mime.includes('pdf'))      return <span>📄</span>
+  if (mime.includes('pdf')) return <span>📄</span>
+  if (mime.includes('word') || mime.includes('doc')) return <span>📝</span>
   return <span>📎</span>
 }
 
-export function StudentHomework() {
+export function StudentHomework({ teacherIds = [] }: { teacherIds?: string[] }) {
   const [list, setList]           = useState<HW[]>([])
   const [subs, setSubs]           = useState<Sub[]>([])
   const [loading, setLoading]     = useState(true)
@@ -59,21 +60,12 @@ export function StudentHomework() {
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    // Получаем id учителей к которым записан ученик
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('teacher_id')
-      .eq('student_id', user.id)
-    const teacherIds = (enrollments ?? []).map((e: any) => e.teacher_id)
-
     const [{ data: hw }, { data: sb }] = await Promise.all([
-      teacherIds.length === 0
-        ? Promise.resolve({ data: [] })
-        : supabase
-            .from('homework')
-            .select('id, title, description, deadline, teacher:profiles!homework_teacher_id_fkey(name)')
-            .in('teacher_id', teacherIds)
-            .order('created_at', { ascending: false }),
+      supabase
+        .from('homework')
+        .select('id, title, description, deadline, attachments, teacher:profiles!homework_teacher_id_fkey(name)')
+        .order('created_at', { ascending: false })
+        .in('teacher_id', teacherIds.length > 0 ? teacherIds : ['__none__']),
       supabase
         .from('homework_submissions')
         .select('id, homework_id, comment, submitted_at, attachments, status, review_comment')
@@ -82,6 +74,7 @@ export function StudentHomework() {
     setList(((hw ?? []) as any[]).map((h) => ({
       ...h,
       teacher: Array.isArray(h.teacher) ? h.teacher[0] : h.teacher,
+      attachments: Array.isArray(h.attachments) ? h.attachments : [],
     })) as HW[])
     setSubs(((sb ?? []) as any[]).map((s) => ({
       ...s,
@@ -102,7 +95,6 @@ export function StudentHomework() {
     if (!user) return
     setUploading(hwId)
 
-    // Загружаем файлы в Storage
     const newAttachments: Attachment[] = []
     const files = pendingFiles[hwId] ?? []
     for (const file of files) {
@@ -114,7 +106,6 @@ export function StudentHomework() {
       }
     }
 
-    // Добавляем ссылку если есть
     const link = (links[hwId] ?? '').trim()
     if (link) {
       const url = link.startsWith('http') ? link : 'https://' + link
@@ -165,8 +156,8 @@ export function StudentHomework() {
   if (loading) return <p className="empty">Загрузка…</p>
   if (list.length === 0) return <p className="empty">Заданий от учителей пока нет.</p>
 
-  const pending      = list.filter((hw) => !subs.find((s) => s.homework_id === hw.id))
-  const done         = list.filter((hw) =>  subs.find((s) => s.homework_id === hw.id))
+  const pending        = list.filter((hw) => !subs.find((s) => s.homework_id === hw.id))
+  const done           = list.filter((hw) =>  subs.find((s) => s.homework_id === hw.id))
   const overduePending = pending.filter((hw) => isOverdue(hw.deadline))
   const pct = list.length > 0 ? Math.round((done.length / list.length) * 100) : 0
   const streakEmoji = pct === 100 ? '🏆' : pct >= 75 ? '🔥' : pct >= 50 ? '✨' : pct >= 25 ? '📚' : '🌱'
@@ -261,12 +252,80 @@ function HwCard({
     <div className="card" style={{ marginBottom: 12 }}>
       {/* Шапка */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ marginBottom: 4, fontSize: 17 }}>{hw.title}</h3>
           {hw.description && (
             <p style={{ fontSize: 14, color: 'var(--text-soft)', margin: '0 0 6px' }}>{hw.description}</p>
           )}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+
+          {/* ──── Материалы от учителя ──── */}
+          {hw.attachments?.length > 0 && (
+            <div style={{ margin: '10px 0 6px' }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-faint)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                Материалы
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {hw.attachments.map((a, i) => {
+                  const isImage = a.mime?.startsWith('image/')
+                  const isVideo = a.mime?.startsWith('video/')
+                  const isAudio = a.mime?.startsWith('audio/')
+                  const isLink  = a.type === 'link'
+
+                  if (isImage) return (
+                    <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', maxWidth: 400 }}>
+                      <img src={a.url} alt={a.name} style={{ width: '100%', display: 'block', maxHeight: 280, objectFit: 'cover' }} />
+                      <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--text-soft)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>🖼️</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                        <span style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 11 }}>↗</span>
+                      </div>
+                    </a>
+                  )
+
+                  if (isVideo) return (
+                    <div key={i} style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', maxWidth: 400 }}>
+                      <video src={a.url} controls style={{ width: '100%', display: 'block', maxHeight: 260, background: '#000' }} />
+                      <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--text-soft)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>🎬</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                      </div>
+                    </div>
+                  )
+
+                  if (isAudio) return (
+                    <div key={i} style={{ padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, maxWidth: 400 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span>🎵</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                      </div>
+                      <audio src={a.url} controls style={{ width: '100%' }} />
+                    </div>
+                  )
+
+                  // Ссылки и файлы — чип
+                  return (
+                    <a
+                      key={i}
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', background: 'color-mix(in srgb, var(--accent) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 30%, var(--border))', borderRadius: 10, fontSize: 13, color: 'var(--text)', textDecoration: 'none', fontWeight: 500, alignSelf: 'flex-start' }}
+                    >
+                      <AttachIcon mime={a.mime} />
+                      <span style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {isLink
+                          ? (() => { try { return new URL(a.url).hostname } catch { return a.url } })()
+                          : a.name}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>↗</span>
+                    </a>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
             {hw.teacher?.name && (
               <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Учитель: {hw.teacher.name}</span>
             )}
@@ -316,10 +375,9 @@ function HwCard({
         </div>
       )}
 
-      {/* Форма сдачи (новая работа или после отклонения) */}
+      {/* Форма сдачи */}
       {(!sub || isRejected) && (
         <div style={{ marginTop: 14 }}>
-          {/* Вложения уже добавленные (при повторной сдаче после rejection) */}
           {isRejected && sub && sub.attachments?.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
               {sub.attachments.map((a, i) => (
@@ -328,12 +386,11 @@ function HwCard({
             </div>
           )}
 
-          {/* Новые файлы в очереди */}
           {files.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
               {files.map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 13 }}>
-                  <AttachIcon a={{ type: "file", name: f.name, url: "", mime: f.type }} />
+                  <AttachIcon mime={f.type} />
                   <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                   <button onClick={() => onFilesChange(files.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
                 </div>
@@ -341,7 +398,6 @@ function HwCard({
             </div>
           )}
 
-          {/* Комментарий */}
           <input
             style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-2)', color: 'var(--text)', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 8 }}
             placeholder="Комментарий (необязательно)"
@@ -349,15 +405,13 @@ function HwCard({
             onChange={(e) => onCommentChange(e.target.value)}
           />
 
-          {/* Ссылка */}
           <input
             style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-2)', color: 'var(--text)', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 8 }}
-            placeholder="Ссылка (https://...)"
+            placeholder="Ссылка на работу (https://…)"
             value={link}
             onChange={(e) => onLinkChange(e.target.value)}
           />
 
-          {/* Кнопки */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               className="lesson-cancel"
@@ -370,7 +424,7 @@ function HwCard({
               ref={fileRef}
               type="file"
               multiple
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.zip"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const newFiles = Array.from(e.target.files ?? [])
@@ -402,9 +456,9 @@ function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () => void 
       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 13, color: 'var(--text)', textDecoration: 'none', maxWidth: 220 }}
       onClick={(e) => e.stopPropagation()}
     >
-      <AttachIcon a={a} />
+      <AttachIcon mime={a.mime} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {a.type === 'link' ? new URL(a.url).hostname : a.name}
+        {a.type === 'link' ? (() => { try { return new URL(a.url).hostname } catch { return a.url } })() : a.name}
       </span>
       {onRemove && (
         <button

@@ -429,7 +429,7 @@ export function StudentTabs({
       {/* ── Задания ── */}
       {tab === 'homework' && (
         <div className="student-tab-content">
-          <StudentHomework />
+          <StudentHomework teacherIds={teachers.map(t => t.id)} />
         </div>
       )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 type Attachment = { type: 'link' | 'file'; name: string; url: string; mime?: string }
@@ -11,6 +11,7 @@ type HW = {
   description: string | null
   deadline: string | null
   created_at: string
+  attachments: Attachment[]
 }
 type Submission = {
   id: string
@@ -33,13 +34,13 @@ const STATUS_META = {
   rejected:  { label: 'На доработку', cls: 'badge-cancelled' },
 }
 
-function AttachIcon({ a }: { a: Attachment }) {
-  if (a.type === 'link') return <span>🔗</span>
-  const mime = a.mime ?? ''
+function AttachIcon({ mime }: { mime?: string }) {
+  if (!mime) return <span>🔗</span>
   if (mime.startsWith('image/')) return <span>🖼️</span>
   if (mime.startsWith('video/')) return <span>🎬</span>
   if (mime.startsWith('audio/')) return <span>🎵</span>
   if (mime.includes('pdf'))      return <span>📄</span>
+  if (mime.includes('word') || mime.includes('doc')) return <span>📝</span>
   return <span>📎</span>
 }
 
@@ -52,6 +53,12 @@ export function TeacherHomework({ students }: { students: Student[] }) {
   const [deadline, setDeadline] = useState('')
   const [saving, setSaving]     = useState(false)
   const [err, setErr]           = useState<string | null>(null)
+
+  // Вложения для нового задания
+  const [newLink, setNewLink]           = useState('')
+  const [newFiles, setNewFiles]         = useState<File[]>([])
+  const [uploadingNew, setUploadingNew] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // Стейт для окна проверки
   const [reviewing, setReviewing] = useState<{ subId: string; hwTitle: string; studentName: string } | null>(null)
@@ -66,14 +73,17 @@ export function TeacherHomework({ students }: { students: Student[] }) {
     const [{ data: hw }, { data: sb }] = await Promise.all([
       supabase
         .from('homework')
-        .select('id, title, description, deadline, created_at')
+        .select('id, title, description, deadline, created_at, attachments')
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false }),
       supabase
         .from('homework_submissions')
         .select('id, homework_id, student_id, comment, submitted_at, attachments, status, review_comment'),
     ])
-    setList((hw ?? []) as HW[])
+    setList(((hw ?? []) as any[]).map((h) => ({
+      ...h,
+      attachments: Array.isArray(h.attachments) ? h.attachments : [],
+    })) as HW[])
     const normalized = ((sb ?? []) as any[]).map((s) => ({
       ...s,
       attachments:    Array.isArray(s.attachments) ? s.attachments : [],
@@ -86,26 +96,43 @@ export function TeacherHomework({ students }: { students: Student[] }) {
 
   useEffect(() => {
     load()
-
     const channel = supabase
       .channel('teacher-homework-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions' }, () => load())
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function create() {
     if (!title.trim()) { setErr('Введите название задания'); return }
-    setSaving(true); setErr(null)
+    setSaving(true); setUploadingNew(true); setErr(null)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+
+    // Загружаем файлы учителя
+    const teacherAttachments: Attachment[] = []
+    for (const file of newFiles) {
+      const path = `teacher/${user.id}/${Date.now()}_${file.name}`
+      const { error } = await supabase.storage.from('homework-attachments').upload(path, file)
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from('homework-attachments').getPublicUrl(path)
+        teacherAttachments.push({ type: 'file', name: file.name, url: publicUrl, mime: file.type })
+      }
+    }
+    // Добавляем ссылку
+    const link = newLink.trim()
+    if (link) {
+      const url = link.startsWith('http') ? link : 'https://' + link
+      teacherAttachments.push({ type: 'link', name: url, url })
+    }
+
     const { error } = await supabase.from('homework').insert({
       teacher_id: user.id,
       title: title.trim(),
       description: desc.trim() || null,
       deadline: deadline || null,
+      attachments: teacherAttachments,
     })
     if (error) {
       setErr('Ошибка: ' + error.message)
@@ -118,9 +145,10 @@ export function TeacherHomework({ students }: { students: Student[] }) {
         })
       }
       setTitle(''); setDesc(''); setDeadline('')
+      setNewLink(''); setNewFiles([])
       load()
     }
-    setSaving(false)
+    setSaving(false); setUploadingNew(false)
   }
 
   async function remove(id: string) {
@@ -134,34 +162,26 @@ export function TeacherHomework({ students }: { students: Student[] }) {
       const sub = subs.find((s) => s.id === subId)
       if (!sub) return
 
-      // 1. Обновляем статус
       const { error: updateError } = await supabase
         .from('homework_submissions')
-        .update({
-          status: action,
-          review_comment: reviewComment.trim() || null,
-        })
+        .update({ status: action, review_comment: reviewComment.trim() || null })
         .eq('id', subId)
 
       if (updateError) {
-        console.error('Ошибка обновления:', updateError)
         alert('Ошибка: ' + updateError.message)
         return
       }
 
-      // 2. Уведомление ученику
       const hw = list.find((h) => h.id === sub.homework_id)
       const text = action === 'approved'
         ? `Работа «${hw?.title}» принята ✓`
         : `Работа «${hw?.title}» возвращена на доработку${reviewComment.trim() ? ': ' + reviewComment.trim() : ''}`
 
-      // Пробуем RPC, если нет — вставляем напрямую в notifications
       const { error: rpcError } = await supabase.rpc('create_notification', {
         p_user_id: sub.student_id,
         p_text: text,
       })
       if (rpcError) {
-        console.warn('RPC недоступен, вставляем напрямую:', rpcError.message)
         await supabase.from('notifications').insert({
           user_id: sub.student_id,
           text,
@@ -172,8 +192,6 @@ export function TeacherHomework({ students }: { students: Student[] }) {
       setReviewing(null)
       setReviewComment('')
       load()
-    } catch (e) {
-      console.error('Непредвиденная ошибка:', e)
     } finally {
       setReviewLoading(false)
     }
@@ -184,7 +202,6 @@ export function TeacherHomework({ students }: { students: Student[] }) {
 
   if (loading) return <p className="empty">Загрузка…</p>
 
-  // Считаем сколько работ ждут проверки
   const pendingReviewCount = subs.filter((s) => s.status === 'submitted').length
 
   return (
@@ -269,8 +286,65 @@ export function TeacherHomework({ students }: { students: Student[] }) {
           <label>Дедлайн (необязательно)</label>
           <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
         </div>
+
+        {/* ──── Блок вложений учителя ──── */}
+        <div style={{ marginTop: 4, marginBottom: 8 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-soft)', display: 'block', marginBottom: 8 }}>
+            Материалы к заданию (необязательно)
+          </label>
+
+          {/* Предпросмотр добавленных файлов */}
+          {newFiles.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+              {newFiles.map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 13 }}>
+                  <AttachIcon mime={f.type} />
+                  <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                  <button
+                    onClick={() => setNewFiles(newFiles.filter((_, j) => j !== i))}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', fontSize: 16, lineHeight: 1, padding: 0 }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Поле для ссылки */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              style={{ flex: 1, minWidth: 200, padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-2)', color: 'var(--text)', fontSize: 14, fontFamily: 'inherit' }}
+              placeholder="Ссылка на материал (https://…)"
+              value={newLink}
+              onChange={(e) => setNewLink(e.target.value)}
+            />
+            <button
+              className="lesson-cancel"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+              onClick={() => fileRef.current?.click()}
+              type="button"
+            >
+              📎 Файл
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.zip"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const added = Array.from(e.target.files ?? [])
+                setNewFiles((p) => [...p, ...added])
+                e.target.value = ''
+              }}
+            />
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '6px 0 0' }}>
+            Ученики смогут открыть эти материалы при выполнении задания
+          </p>
+        </div>
+
         {err && <p className="enroll-msg-err">{err}</p>}
-        <button className="btn" style={{ marginTop: 8 }} onClick={create} disabled={saving}>
+        <button className="btn" style={{ marginTop: 8 }} onClick={create} disabled={saving || uploadingNew}>
           {saving ? 'Создаём…' : 'Создать задание'}
         </button>
       </div>
@@ -279,7 +353,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
         <p className="empty" style={{ marginTop: 20 }}>Заданий пока нет.</p>
       ) : (
         list.map((hw) => {
-          const hwSubs    = subsFor(hw.id)
+          const hwSubs      = subsFor(hw.id)
           const approvedIds = new Set(hwSubs.filter((s) => s.status === 'approved').map((s) => s.student_id))
           const submittedCount = hwSubs.filter((s) => s.status === 'submitted').length
           const overdue = hw.deadline ? new Date(hw.deadline) < new Date(new Date().toDateString()) : false
@@ -287,12 +361,65 @@ export function TeacherHomework({ students }: { students: Student[] }) {
           return (
             <div className="card" key={hw.id}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <h3 style={{ marginBottom: 4 }}>{hw.title}</h3>
                   {hw.description && (
                     <p style={{ fontSize: 14, color: 'var(--text-soft)', margin: '0 0 6px' }}>{hw.description}</p>
                   )}
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+
+                  {/* Вложения учителя */}
+                  {hw.attachments?.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0' }}>
+                      {hw.attachments.map((a, i) => {
+                        const isImage = a.mime?.startsWith('image/')
+                        const isVideo = a.mime?.startsWith('video/')
+                        const isAudio = a.mime?.startsWith('audio/')
+                        const isLink  = a.type === 'link'
+
+                        if (isImage) return (
+                          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', maxWidth: 320 }}>
+                            <img src={a.url} alt={a.name} style={{ width: '100%', display: 'block', maxHeight: 200, objectFit: 'cover' }} />
+                            <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--text-soft)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span>🖼️</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                            </div>
+                          </a>
+                        )
+
+                        if (isVideo) return (
+                          <div key={i} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', maxWidth: 320 }}>
+                            <video src={a.url} controls style={{ width: '100%', display: 'block', maxHeight: 200, background: '#000' }} />
+                            <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--text-soft)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span>🎬</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                            </div>
+                          </div>
+                        )
+
+                        if (isAudio) return (
+                          <div key={i} style={{ padding: '8px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, maxWidth: 320 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span>🎵</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                            </div>
+                            <audio src={a.url} controls style={{ width: '100%' }} />
+                          </div>
+                        )
+
+                        return (
+                          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'color-mix(in srgb, var(--accent) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 25%, var(--border))', borderRadius: 10, fontSize: 12, color: 'var(--text)', textDecoration: 'none', alignSelf: 'flex-start' }}>
+                            <AttachIcon mime={a.mime} />
+                            <span style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {isLink ? (() => { try { return new URL(a.url).hostname } catch { return a.url } })() : a.name}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }}>↗</span>
+                          </a>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
                     {hw.deadline && (
                       <span style={{ fontSize: 13, color: overdue ? 'var(--danger)' : 'var(--text-faint)' }}>
                         {overdue ? 'Дедлайн истёк: ' : 'До: '}{fmtDate(hw.deadline)}
@@ -328,7 +455,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
 
                   <ul className="lesson-list">
                     {students.map((s) => {
-                      const sub = hwSubs.find((x) => x.student_id === s.id)
+                      const sub  = hwSubs.find((x) => x.student_id === s.id)
                       const meta = sub ? STATUS_META[sub.status] : null
 
                       return (
@@ -340,7 +467,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                               <>
                                 <span className={`badge ${meta!.cls}`}>{meta!.label}</span>
 
-                                {/* Вложения */}
+                                {/* Вложения ученика */}
                                 {sub.attachments?.length > 0 && (
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
                                     {sub.attachments.map((a, i) => (
@@ -351,7 +478,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                                         rel="noopener noreferrer"
                                         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, color: 'var(--text)', textDecoration: 'none' }}
                                       >
-                                        <AttachIcon a={a} />
+                                        <AttachIcon mime={a.mime} />
                                         <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                           {a.type === 'link' ? (() => { try { return new URL(a.url).hostname } catch { return a.url } })() : a.name}
                                         </span>
@@ -360,19 +487,16 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                                   </div>
                                 )}
 
-                                {/* Комментарий ученика */}
                                 {sub.comment && (
                                   <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 240, textAlign: 'right' }}>
                                     {sub.comment}
                                   </span>
                                 )}
 
-                                {/* Дата сдачи */}
                                 <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
                                   {new Date(sub.submitted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                                 </span>
 
-                                {/* Кнопка проверки — только для submitted */}
                                 {sub.status === 'submitted' && (
                                   <button
                                     className="lesson-save"
@@ -386,7 +510,6 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                                   </button>
                                 )}
 
-                                {/* Комментарий учителя */}
                                 {sub.review_comment && (
                                   <span style={{ fontSize: 12, color: sub.status === 'rejected' ? 'var(--danger)' : 'var(--accent)', maxWidth: 240, textAlign: 'right', fontStyle: 'italic' }}>
                                     «{sub.review_comment}»
