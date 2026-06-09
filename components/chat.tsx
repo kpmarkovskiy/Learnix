@@ -148,9 +148,10 @@ export function Chat({
           .single()
 
         setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev
-          return [...prev, { ...msg, sender: profile ?? undefined }]
-        })
+  if (prev.some((m) => m.id === msg.id)) return prev
+  new Audio('/discord-notification.mp3').play().catch(() => {})
+  return [...prev, { ...msg, sender: profile ?? undefined }]
+})
       })
       .subscribe()
 
