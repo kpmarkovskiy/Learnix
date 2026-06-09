@@ -10,10 +10,10 @@ type Message = {
   text: string | null
   created_at: string
   chat_type: 'direct' | 'announcement' | 'group'
-  sender?: { name: string }
+  sender?: { name: string; avatar_url: string | null }
 }
 
-type Peer = { id: string; name: string }
+type Peer = { id: string; name: string; avatar_url?: string | null }
 type ChatMode = 'announcement' | 'group' | 'direct'
 
 const fmtTime = (iso: string) =>
@@ -35,48 +35,69 @@ function groupByDay(messages: Message[]) {
   return grouped
 }
 
+function Avatar({ name, avatarUrl, size = 32 }: { name: string; avatarUrl?: string | null; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: avatarUrl ? 'transparent' : 'var(--accent)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.4, fontWeight: 700, color: '#fff',
+      overflow: 'hidden', flexShrink: 0,
+      border: '1.5px solid var(--border)',
+    }}>
+      {avatarUrl
+        ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : name.charAt(0).toUpperCase()
+      }
+    </div>
+  )
+}
+
 export function Chat({
   peers,
   currentUserId,
   role,
   teacherId,
+  currentUserAvatar,
 }: {
   peers: Peer[]
   currentUserId: string
   role: 'teacher' | 'student'
-  teacherId?: string // для студента — id его учителя
+  teacherId?: string
+  currentUserAvatar?: string | null
 }) {
-  const [mode, setMode] = useState<ChatMode>(role === 'teacher' ? 'announcement' : 'announcement')
+  const [mode, setMode] = useState<ChatMode>('announcement')
   const [activePeer, setActivePeer] = useState<Peer | null>(peers[0] ?? null)
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [currentUserName, setCurrentUserName] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const supabase = createClient()
 
-  // Загрузка сообщений в зависимости от режима
+  useEffect(() => {
+    supabase.from('profiles').select('name').eq('id', currentUserId).single()
+      .then(({ data }) => setCurrentUserName(data?.name ?? ''))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function loadMessages() {
     setLoading(true)
     let query = supabase
       .from('messages')
-      .select('id, sender_id, receiver_id, text, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name)')
+      .select('id, sender_id, receiver_id, text, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
       .order('created_at')
 
     if (mode === 'announcement') {
-      // Объявления: chat_type=announcement, от учителя (teacherId или currentUserId если учитель)
       const tId = role === 'teacher' ? currentUserId : teacherId
       query = query.eq('chat_type', 'announcement').eq('sender_id', tId ?? '')
     } else if (mode === 'group') {
-      // Групповой: chat_type=group
-      // Для студента — только от его учителя
       if (role === 'student' && teacherId) {
         query = query.eq('chat_type', 'group').or(`sender_id.eq.${teacherId},sender_id.eq.${currentUserId}`)
       } else {
         query = query.eq('chat_type', 'group')
       }
     } else if (mode === 'direct' && activePeer) {
-      // Личный: между двумя людьми
       query = query
         .eq('chat_type', 'direct')
         .or(
@@ -122,7 +143,7 @@ export function Chat({
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('name')
+          .select('name, avatar_url')
           .eq('id', msg.sender_id)
           .single()
 
@@ -141,7 +162,6 @@ export function Chat({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Может ли пользователь писать в текущем режиме
   const canWrite =
     mode === 'direct' ||
     mode === 'group' ||
@@ -166,12 +186,9 @@ export function Chat({
 
     await supabase.from('messages').insert(payload)
 
-    // Уведомления
-    const { data: me } = await supabase.from('profiles').select('name').eq('id', currentUserId).single()
-    const myName = me?.name ?? 'пользователь'
+    const myName = currentUserName || 'пользователь'
 
     if (mode === 'announcement' && role === 'teacher') {
-      // Уведомить всех учеников
       for (const peer of peers) {
         await supabase.rpc('create_notification', {
           p_user_id: peer.id,
@@ -179,7 +196,6 @@ export function Chat({
         })
       }
     } else if (mode === 'group') {
-      // Уведомить всех кроме себя
       for (const peer of peers) {
         await supabase.rpc('create_notification', {
           p_user_id: peer.id,
@@ -209,7 +225,6 @@ export function Chat({
 
   const grouped = groupByDay(messages)
 
-  // Заголовок активного чата
   const chatTitle =
     mode === 'announcement' ? '📢 Объявления'
     : mode === 'group' ? '👥 Общий чат'
@@ -222,7 +237,6 @@ export function Chat({
       <aside className="chat-peers">
         <p className="chat-peers-label">Чаты</p>
 
-        {/* Объявления */}
         <button
           className={`chat-peer-btn ${mode === 'announcement' ? 'active' : ''}`}
           onClick={() => setMode('announcement')}
@@ -231,7 +245,6 @@ export function Chat({
           <span className="chat-peer-name">Объявления</span>
         </button>
 
-        {/* Общий чат */}
         <button
           className={`chat-peer-btn ${mode === 'group' ? 'active' : ''}`}
           onClick={() => setMode('group')}
@@ -240,7 +253,6 @@ export function Chat({
           <span className="chat-peer-name">Общий чат</span>
         </button>
 
-        {/* Личные переписки */}
         {peers.length > 0 && (
           <>
             <p className="chat-peers-label" style={{ marginTop: 12 }}>Личные</p>
@@ -250,7 +262,7 @@ export function Chat({
                 className={`chat-peer-btn ${mode === 'direct' && activePeer?.id === p.id ? 'active' : ''}`}
                 onClick={() => { setMode('direct'); setActivePeer(p) }}
               >
-                <span className="chat-peer-av">{p.name.charAt(0).toUpperCase()}</span>
+                <Avatar name={p.name} avatarUrl={p.avatar_url} size={28} />
                 <span className="chat-peer-name">{p.name}</span>
               </button>
             ))}
@@ -285,12 +297,21 @@ export function Chat({
                 const mine = msg.sender_id === currentUserId
                 return (
                   <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`}>
-                    {!mine && mode !== 'direct' && (
-                      <span className="chat-sender-name">{msg.sender?.name}</span>
-                    )}
-                    <div className="chat-bubble">
-                      <span className="chat-bubble-text">{msg.text}</span>
-                      <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
+                    {!mine && (
+  <Avatar
+    name={msg.sender?.name ?? '?'}
+    avatarUrl={msg.sender?.avatar_url}
+    size={32}
+  />
+)}
+<div style={{ display: 'flex', flexDirection: 'column', maxWidth: '70%', minWidth: '120px' }}>
+                      {!mine && mode !== 'direct' && (
+                        <span className="chat-sender-name">{msg.sender?.name}</span>
+                      )}
+                      <div className="chat-bubble">
+                        <span className="chat-bubble-text">{msg.text}</span>
+                        <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
+                      </div>
                     </div>
                   </div>
                 )
