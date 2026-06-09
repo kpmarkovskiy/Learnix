@@ -2,11 +2,8 @@
  
 /* ============================================================
    Learnix — дизайн-система
-   Чёрно-белая база + коралловый акцент. Светлая и тёмная темы.
-   Тема переключается атрибутом data-theme на <html>.
    ============================================================ */
  
-/* Светлая тема (по умолчанию) */
 :root,
 [data-theme="light"] {
   --bg:           #fafafa;
@@ -33,7 +30,6 @@
   --radius:       14px;
 }
  
-/* Тёмная тема */
 [data-theme="dark"] {
   --bg:           #0d0d0f;
   --surface:      #161618;
@@ -58,7 +54,6 @@
   --danger:       #f06a6a;
 }
  
-/* Аватарки — сочные, одинаковые в обеих темах */
 :root {
   --av-coral:  #ff5a36;
   --av-blue:   #2f6bff;
@@ -87,9 +82,6 @@ h1, h2, h3 {
   color: var(--text);
 }
  
-/* ============================================================
-   AUTH — две колонки
-   ============================================================ */
 .auth-shell {
   display: grid;
   grid-template-columns: 1.05fr 1fr;
@@ -131,7 +123,6 @@ h1, h2, h3 {
 }
 .brand-mark span { color: var(--accent); }
  
-/* Заголовок панели — ВСЕГДА светлый, панель тёмная в любой теме */
 .brand-headline {
   font-family: var(--font-display), serif;
   font-size: clamp(34px, 4vw, 50px);
@@ -140,7 +131,6 @@ h1, h2, h3 {
   position: relative;
   color: var(--brand-fg);
 }
-/* Коралловая акцентная линия под заголовком */
 .brand-headline::after {
   content: "";
   display: block;
@@ -159,7 +149,6 @@ h1, h2, h3 {
   max-width: 34ch;
 }
  
-/* Мини-список преимуществ */
 .brand-features {
   position: relative;
   margin-top: 28px;
@@ -290,9 +279,6 @@ h1, h2, h3 {
 .alert-error { background: var(--accent-soft); color: var(--danger); }
 .alert-info  { background: var(--surface-2); color: var(--text); }
  
-/* ============================================================
-   КАБИНЕТЫ
-   ============================================================ */
 .dash-header {
   display: flex;
   align-items: center;
@@ -320,7 +306,6 @@ h1, h2, h3 {
   margin-top: 14px;
 }
  
-/* Кнопки-«призраки»: тема, выход */
 .btn-ghost, .theme-toggle {
   width: auto;
   padding: 8px 16px;
@@ -338,7 +323,6 @@ h1, h2, h3 {
   border-color: var(--text-faint);
 }
  
-/* ---------- Карточки ---------- */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -349,7 +333,6 @@ h1, h2, h3 {
 .card h3 { font-size: 18px; margin-bottom: 4px; }
 .card-hint { font-size: 14px; color: var(--text-soft); margin: 0 0 16px; }
  
-/* ---------- Код приглашения ---------- */
 .code-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .code-value {
   font-family: var(--font-display), monospace;
@@ -374,7 +357,6 @@ h1, h2, h3 {
 }
 .copy-btn:hover { background: var(--border); }
  
-/* ---------- Списки людей ---------- */
 .people-list {
   list-style: none; margin: 0; padding: 0;
   display: flex; flex-direction: column; gap: 10px;
@@ -405,7 +387,6 @@ h1, h2, h3 {
  
 .empty { font-size: 14px; color: var(--text-soft); margin: 0; }
  
-/* ---------- Форма записи по коду ---------- */
 .enroll-form { display: flex; gap: 10px; flex-wrap: wrap; }
 .enroll-input {
   flex: 1; min-width: 180px;
@@ -427,7 +408,6 @@ h1, h2, h3 {
 .enroll-msg-ok  { margin: 12px 0 0; font-size: 14px; color: var(--accent-strong); }
 .enroll-msg-err { margin: 12px 0 0; font-size: 14px; color: var(--danger); }
  
-/* Автозаполнение браузера — под нашу тему (убирает голубой фон) */
 .field input:-webkit-autofill,
 .enroll-input:-webkit-autofill {
   -webkit-text-fill-color: var(--text);
@@ -436,9 +416,42 @@ h1, h2, h3 {
   transition: background-color 9999s ease-out 0s;
 }
  
-/* ============================================================
-   Расписание — свободное время ученика
-   ============================================================ */
+/* ── Select — кастомный стиль ─────────────────────────── */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 10px 36px 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background-color: var(--surface-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6b72' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  min-width: 90px;
+}
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+select:hover { border-color: var(--text-faint); }
+
+[data-theme="light"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2318181b' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* option — минимальный сброс */
+option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* ── Availability / schedule forms ───────────────────── */
 .avail-form {
   display: flex;
   flex-wrap: wrap;
@@ -447,21 +460,6 @@ h1, h2, h3 {
 }
 .avail-field { display: flex; flex-direction: column; gap: 5px; }
 .avail-field label { font-size: 12px; font-weight: 600; color: var(--text-soft); }
-.avail-field select,
-.avail-field input {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 14px;
-}
-.avail-field select:focus,
-.avail-field input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
 .avail-add { width: auto; padding: 11px 18px; }
  
 .avail-list {
@@ -495,9 +493,6 @@ h1, h2, h3 {
 }
 .avail-del:hover { color: var(--danger); background: var(--surface); }
  
-/* ============================================================
-   Календарь свободного времени
-   ============================================================ */
 .cal-head {
   display: flex;
   align-items: center;
@@ -579,9 +574,6 @@ h1, h2, h3 {
   text-transform: capitalize;
 }
  
-/* ============================================================
-   Назначение занятий (сторона учителя) + список занятий
-   ============================================================ */
 .back-link {
   display: inline-block;
   margin-bottom: 14px;
@@ -592,20 +584,10 @@ h1, h2, h3 {
 }
 .back-link:hover { color: var(--accent); }
  
-/* Кликабельная строка ученика */
-.person-link {
-  text-decoration: none;
-  color: inherit;
-}
+.person-link { text-decoration: none; color: inherit; }
 .person-link:hover { border-color: var(--accent); }
-.person-chevron {
-  margin-left: auto;
-  color: var(--text-faint);
-  font-size: 20px;
-  line-height: 1;
-}
+.person-chevron { margin-left: auto; color: var(--text-faint); font-size: 20px; line-height: 1; }
  
-/* Чипы свободных окон */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   border: 1px solid var(--border);
@@ -619,7 +601,6 @@ h1, h2, h3 {
 }
 .chip:hover { border-color: var(--accent); }
  
-/* Список занятий */
 .lesson-list {
   list-style: none;
   margin: 0;
@@ -653,7 +634,6 @@ h1, h2, h3 {
 }
 .lesson-cancel:hover { color: var(--danger); background: var(--surface); }
  
-/* Бейджи статусов */
 .badge {
   font-size: 12px;
   font-weight: 600;
@@ -665,7 +645,6 @@ h1, h2, h3 {
 .badge-completed { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border); }
 .badge-cancelled { background: var(--surface); color: var(--text-faint); border: 1px solid var(--border); }
  
-/* Список выбора учеников (галочки) */
 .pick-list {
   list-style: none;
   margin: 0 0 16px;
@@ -696,10 +675,8 @@ h1, h2, h3 {
 .pick-name { font-weight: 600; font-size: 15px; }
 .pick-free { font-size: 13px; color: var(--text-soft); }
 .pick-free.fit { color: var(--accent-strong); font-weight: 600; }
+.pick-free.busy { color: var(--danger); }
  
-/* ============================================================
-   Планировщик: слева ученики, в центре календарь
-   ============================================================ */
 .sched {
   display: grid;
   grid-template-columns: 200px 1fr;
@@ -740,7 +717,6 @@ h1, h2, h3 {
 .sched-empty { color: var(--text-soft); font-size: 14px; padding: 24px 0; }
 .sched-cal { max-width: 420px; }
  
-/* «Полый» маркер свободного дня на календаре */
 .cal-dot-free {
   position: absolute;
   bottom: 6px;
@@ -751,7 +727,6 @@ h1, h2, h3 {
 }
 .cal-cell.selected .cal-dot-free { border-color: #fff; }
  
-/* Легенда под календарём */
 .cal-legend {
   display: flex;
   align-items: center;
@@ -767,9 +742,6 @@ h1, h2, h3 {
 .cal-legend .leg-free { border: 1.5px solid var(--accent); }
 .cal-legend .leg-busy { background: var(--accent); margin-left: 12px; }
  
-/* ============================================================
-   Раскладка кабинета учителя: сайдбар слева + рабочая область
-   ============================================================ */
 .shell {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -862,16 +834,7 @@ h1, h2, h3 {
   .shell-main { padding: 24px 20px; }
 }
  
-/* Перенос урока (инлайн-редактирование времени) */
 .lesson-edit { display: flex; align-items: center; gap: 8px; }
-.lesson-edit select {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
-}
 .lesson-save {
   border: none;
   background: var(--accent);
@@ -884,7 +847,6 @@ h1, h2, h3 {
 }
 .lesson-save:hover { background: var(--accent-strong); }
  
-/* Рабочая сетка учителя: календарь + место под чат */
 .work-grid {
   display: grid;
   grid-template-columns: 1fr 320px;
@@ -923,10 +885,6 @@ h1, h2, h3 {
   padding: 20px;
 }
  
-/* Статус «занят» в списке выбора */
-.pick-free.busy { color: var(--danger); }
- 
-/* Кабинет ученика — сетка карточек */
 .student-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -939,7 +897,6 @@ h1, h2, h3 {
   .student-grid { grid-template-columns: 1fr; }
 }
  
-/* Вкладки в сайдбаре учителя */
 .shell-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .shell-tab {
   display: flex;
@@ -971,7 +928,6 @@ h1, h2, h3 {
   padding: 1px 8px;
 }
  
-/* Сетка вкладки «Добавление уроков»: календарь + форма */
 .add-grid {
   display: grid;
   grid-template-columns: 360px 1fr;
@@ -982,15 +938,12 @@ h1, h2, h3 {
   .add-grid { grid-template-columns: 1fr; }
 }
  
-/* Шапка карточки ученика на вкладке «Ученики» */
 .stud-head { display: flex; align-items: center; gap: 10px; }
 .stud-head .person-name { font-size: 16px; }
  
-/* Бейджи типа занятия */
 .badge-ind { background: var(--surface-2); color: var(--text-soft); border: 1px solid var(--border); }
 .badge-grp { background: var(--accent-soft); color: var(--accent-strong); }
  
-/* Колокольчик уведомлений */
 .shell-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .bell { position: relative; }
 .bell-btn {
@@ -1208,29 +1161,20 @@ h1, h2, h3 {
 }
 .chat-input:focus { outline: none; border-color: var(--accent); }
 .chat-send-btn {
-  flex-shrink: 0;   /* НЕ сжимается */
-  
+  flex-shrink: 0;
   padding: 12px 18px;
- 
   background: linear-gradient(135deg, #ff5a36, #ff6f4d);
   color: white;
- 
   border: none;
   border-radius: 14px;
- 
   font-size: 14px;
   font-weight: 600;
- 
   cursor: pointer;
- 
   display: flex;
   align-items: center;
   justify-content: center;
- 
   white-space: nowrap;
- 
   box-shadow: 0 6px 18px rgba(255, 90, 54, 0.25);
- 
   transition: all 0.2s ease;
 }
 .chat-send-btn:hover {
@@ -1284,3 +1228,55 @@ h1, h2, h3 {
 .student-tab-btn:hover { color: var(--text); }
 .student-tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent); }
 .student-tab-content { padding-top: 4px; }
+
+.chat-sender-name {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-bottom: 2px;
+  display: block;
+  padding-left: 4px;
+}
+
+/* ── Кастомный скроллбар везде ────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3f transparent;
+}
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #3a3a3f;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #55555c;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Скроллбар: светлая и тёмная темы ─────────────────── */
+:root,
+[data-theme="light"] {
+  --scrollbar-thumb:       #a0a0a8;
+  --scrollbar-thumb-hover: #808088;
+}
+[data-theme="dark"] {
+  --scrollbar-thumb:       #55555c;
+  --scrollbar-thumb-hover: #6e6e78;
+}
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb) !important;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+}

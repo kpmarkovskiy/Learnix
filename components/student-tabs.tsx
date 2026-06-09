@@ -157,15 +157,12 @@ export function StudentTabs({
 
   const td = todayStr()
 
-  // Предстоящие: будущие запланированные (включая сегодня)
   const upcoming = lessons.filter(l => l.date >= td && l.status === 'scheduled')
-  // История: прошедшие ИЛИ уже завершённые/отменённые
   const history = lessons
     .filter(l => l.date < td || l.status !== 'scheduled')
     .slice()
-    .reverse()   // новые сверху
+    .reverse()
 
-  // Статистика посещаемости
   const resolved = lessons.filter(l => l.status === 'completed' || l.status === 'cancelled')
   const completedCount = lessons.filter(l => l.status === 'completed').length
   const cancelledCount = lessons.filter(l => l.status === 'cancelled').length
@@ -203,11 +200,8 @@ export function StudentTabs({
       {/* ── Расписание ── */}
       {tab === 'schedule' && (
         <div className="student-tab-content">
-
-          {/* Таймер до следующего урока */}
           <NextLessonCountdown lessons={lessons} />
 
-          {/* Статистика посещаемости — только если есть завершённые/отменённые */}
           {resolved.length > 0 && (
             <div style={{
               background: 'var(--surface)',
@@ -247,7 +241,6 @@ export function StudentTabs({
             </div>
           )}
 
-          {/* Переключатель Предстоящие / История */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
             {[
               { key: false, label: `Предстоящие`, count: upcoming.length },
@@ -276,9 +269,7 @@ export function StudentTabs({
             ))}
           </div>
 
-          {/* Список уроков */}
           {!showHistory ? (
-            /* Предстоящие — сгруппированы по дате */
             upcoming.length === 0 ? (
               <div style={{
                 textAlign: 'center', padding: '40px 20px',
@@ -345,7 +336,6 @@ export function StudentTabs({
               })()
             )
           ) : (
-            /* История — плоский список от новых к старым */
             history.length === 0 ? (
               <div style={{
                 textAlign: 'center', padding: '40px 20px',
@@ -384,7 +374,6 @@ export function StudentTabs({
             )
           )}
 
-          {/* Запись к учителю */}
           <section className="card" style={{ marginTop: 20 }}>
             <h3>Записаться к учителю</h3>
             <p className="card-hint">Введите код, который дал вам учитель.</p>
@@ -447,7 +436,12 @@ export function StudentTabs({
       {/* ── Чат ── */}
       {tab === 'chat' && (
         <div className="student-tab-content">
-          <Chat peers={teachers} currentUserId={currentUserId} />
+          <Chat
+            peers={teachers}
+            currentUserId={currentUserId}
+            role="student"
+            teacherId={teachers[0]?.id}
+          />
         </div>
       )}
 
@@ -457,7 +451,8 @@ export function StudentTabs({
           <ProfileEdit />
         </div>
       )}
-    {cancelModal && (
+
+      {cancelModal && (
         <CancelLessonModal
           role="student"
           lessonDate={`${new Date(cancelModal.lesson.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${hhmm(cancelModal.lesson.start_time)}`}

@@ -73,7 +73,7 @@ export function TeacherWorkspace({
         {tab === 'add'       && <TeacherAddLesson students={slim} />}
         {tab === 'lessons'   && <TeacherLessons students={slim} />}
         {tab === 'homework'  && <TeacherHomework students={slim} />}
-        {tab === 'chat'      && <Chat peers={slim} currentUserId={currentUserId} />}
+        {tab === 'chat'      && <Chat peers={slim} currentUserId={currentUserId} role="teacher" />}
         {tab === 'profile'   && <ProfileEdit />}
       </main>
     </div>
