@@ -92,12 +92,8 @@ export function Chat({
       const tId = role === 'teacher' ? currentUserId : teacherId
       query = query.eq('chat_type', 'announcement').eq('sender_id', tId ?? '')
     } else if (mode === 'group') {
-      if (role === 'student' && teacherId) {
-        query = query.eq('chat_type', 'group').or(`sender_id.eq.${teacherId},sender_id.eq.${currentUserId}`)
-      } else {
-        query = query.eq('chat_type', 'group')
-      }
-    } else if (mode === 'direct' && activePeer) {
+  query = query.eq('chat_type', 'group')
+} else if (mode === 'direct' && activePeer) {
       query = query
         .eq('chat_type', 'direct')
         .or(
