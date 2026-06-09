@@ -59,11 +59,21 @@ export function StudentHomework() {
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    // Получаем id учителей к которым записан ученик
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('teacher_id')
+      .eq('student_id', user.id)
+    const teacherIds = (enrollments ?? []).map((e: any) => e.teacher_id)
+
     const [{ data: hw }, { data: sb }] = await Promise.all([
-      supabase
-        .from('homework')
-        .select('id, title, description, deadline, teacher:profiles!homework_teacher_id_fkey(name)')
-        .order('created_at', { ascending: false }),
+      teacherIds.length === 0
+        ? Promise.resolve({ data: [] })
+        : supabase
+            .from('homework')
+            .select('id, title, description, deadline, teacher:profiles!homework_teacher_id_fkey(name)')
+            .in('teacher_id', teacherIds)
+            .order('created_at', { ascending: false }),
       supabase
         .from('homework_submissions')
         .select('id, homework_id, comment, submitted_at, attachments, status, review_comment')
