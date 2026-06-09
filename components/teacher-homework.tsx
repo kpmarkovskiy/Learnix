@@ -33,8 +33,9 @@ const STATUS_META = {
   rejected:  { label: 'На доработку', cls: 'badge-cancelled' },
 }
 
-function AttachIcon({ mime }: { mime?: string }) {
-  if (!mime) return <span>🔗</span>
+function AttachIcon({ a }: { a: Attachment }) {
+  if (a.type === 'link') return <span>🔗</span>
+  const mime = a.mime ?? ''
   if (mime.startsWith('image/')) return <span>🖼️</span>
   if (mime.startsWith('video/')) return <span>🎬</span>
   if (mime.startsWith('audio/')) return <span>🎵</span>
@@ -73,7 +74,13 @@ export function TeacherHomework({ students }: { students: Student[] }) {
         .select('id, homework_id, student_id, comment, submitted_at, attachments, status, review_comment'),
     ])
     setList((hw ?? []) as HW[])
-    setSubs((sb ?? []) as Submission[])
+    const normalized = ((sb ?? []) as any[]).map((s) => ({
+      ...s,
+      attachments:    Array.isArray(s.attachments) ? s.attachments : [],
+      status:         s.status ?? 'submitted',
+      review_comment: s.review_comment ?? null,
+    }))
+    setSubs(normalized as Submission[])
     setLoading(false)
   }
 
@@ -123,29 +130,53 @@ export function TeacherHomework({ students }: { students: Student[] }) {
 
   async function review(subId: string, action: 'approved' | 'rejected') {
     setReviewLoading(true)
-    const sub = subs.find((s) => s.id === subId)
-    if (!sub) return
+    try {
+      const sub = subs.find((s) => s.id === subId)
+      if (!sub) return
 
-    await supabase
-      .from('homework_submissions')
-      .update({
-        status: action,
-        review_comment: reviewComment.trim() || null,
+      // 1. Обновляем статус
+      const { error: updateError } = await supabase
+        .from('homework_submissions')
+        .update({
+          status: action,
+          review_comment: reviewComment.trim() || null,
+        })
+        .eq('id', subId)
+
+      if (updateError) {
+        console.error('Ошибка обновления:', updateError)
+        alert('Ошибка: ' + updateError.message)
+        return
+      }
+
+      // 2. Уведомление ученику
+      const hw = list.find((h) => h.id === sub.homework_id)
+      const text = action === 'approved'
+        ? `Работа «${hw?.title}» принята ✓`
+        : `Работа «${hw?.title}» возвращена на доработку${reviewComment.trim() ? ': ' + reviewComment.trim() : ''}`
+
+      // Пробуем RPC, если нет — вставляем напрямую в notifications
+      const { error: rpcError } = await supabase.rpc('create_notification', {
+        p_user_id: sub.student_id,
+        p_text: text,
       })
-      .eq('id', subId)
+      if (rpcError) {
+        console.warn('RPC недоступен, вставляем напрямую:', rpcError.message)
+        await supabase.from('notifications').insert({
+          user_id: sub.student_id,
+          text,
+          is_read: false,
+        })
+      }
 
-    // Уведомление ученику
-    const hw = list.find((h) => h.id === sub.homework_id)
-    const text = action === 'approved'
-      ? `Работа «${hw?.title}» принята ✓`
-      : `Работа «${hw?.title}» возвращена на доработку${reviewComment.trim() ? ': ' + reviewComment.trim() : ''}`
-
-    await supabase.rpc('create_notification', { p_user_id: sub.student_id, p_text: text })
-
-    setReviewing(null)
-    setReviewComment('')
-    setReviewLoading(false)
-    load()
+      setReviewing(null)
+      setReviewComment('')
+      load()
+    } catch (e) {
+      console.error('Непредвиденная ошибка:', e)
+    } finally {
+      setReviewLoading(false)
+    }
   }
 
   const nameOf  = (id: string) => students.find((s) => s.id === id)?.name ?? 'Ученик'
@@ -320,7 +351,7 @@ export function TeacherHomework({ students }: { students: Student[] }) {
                                         rel="noopener noreferrer"
                                         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, color: 'var(--text)', textDecoration: 'none' }}
                                       >
-                                        <AttachIcon mime={a.mime} />
+                                        <AttachIcon a={a} />
                                         <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                           {a.type === 'link' ? (() => { try { return new URL(a.url).hostname } catch { return a.url } })() : a.name}
                                         </span>

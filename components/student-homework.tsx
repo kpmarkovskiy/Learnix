@@ -36,12 +36,13 @@ const STATUS_META = {
   rejected:  { label: 'На доработку', cls: 'badge-cancelled' },
 }
 
-function AttachIcon({ mime }: { mime?: string }) {
-  if (!mime) return <span>📎</span>
+function AttachIcon({ a }: { a: Attachment }) {
+  if (a.type === 'link') return <span>🔗</span>
+  const mime = a.mime ?? ''
   if (mime.startsWith('image/')) return <span>🖼️</span>
   if (mime.startsWith('video/')) return <span>🎬</span>
   if (mime.startsWith('audio/')) return <span>🎵</span>
-  if (mime.includes('pdf')) return <span>📄</span>
+  if (mime.includes('pdf'))      return <span>📄</span>
   return <span>📎</span>
 }
 
@@ -72,7 +73,12 @@ export function StudentHomework() {
       ...h,
       teacher: Array.isArray(h.teacher) ? h.teacher[0] : h.teacher,
     })) as HW[])
-    setSubs((sb ?? []) as Sub[])
+    setSubs(((sb ?? []) as any[]).map((s) => ({
+      ...s,
+      attachments:    Array.isArray(s.attachments) ? s.attachments : [],
+      status:         s.status ?? 'submitted',
+      review_comment: s.review_comment ?? null,
+    })) as Sub[])
     setLoading(false)
   }
 
@@ -317,7 +323,7 @@ function HwCard({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
               {files.map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 13 }}>
-                  <AttachIcon mime={f.type} />
+                  <AttachIcon a={{ type: "file", name: f.name, url: "", mime: f.type }} />
                   <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                   <button onClick={() => onFilesChange(files.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
                 </div>
@@ -386,7 +392,7 @@ function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () => void 
       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 13, color: 'var(--text)', textDecoration: 'none', maxWidth: 220 }}
       onClick={(e) => e.stopPropagation()}
     >
-      <AttachIcon mime={a.mime} />
+      <AttachIcon a={a} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {a.type === 'link' ? new URL(a.url).hostname : a.name}
       </span>
