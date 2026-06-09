@@ -8,6 +8,7 @@ import { Chat } from '@/components/chat'
 import { NextLessonCountdown } from '@/components/next-lesson-countdown'
 import { StudentHomework } from '@/components/student-homework'
 import { ProfileEdit } from '@/components/profile-edit'
+import { CancelLessonModal } from '@/components/cancel-lesson-modal'
 
 type Lesson = {
   id: string
@@ -15,6 +16,7 @@ type Lesson = {
   start_time: string
   end_time: string
   status: string
+  teacher_id?: string
   teacher?: { name: string }
 }
 type Teacher = { id: string; name: string }
@@ -96,13 +98,14 @@ export function StudentTabs({
   const [tab, setTab] = useState<Tab>('schedule')
   const [showHistory, setShowHistory] = useState(false)
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [cancelModal, setCancelModal] = useState<{ lesson: Lesson } | null>(null)
   const [pendingHwCount, setPendingHwCount] = useState<number>(0)
   const supabase = createClient()
 
   async function loadLessons() {
     const { data } = await supabase
       .from('lessons')
-      .select('id, date, start_time, end_time, status, teacher:profiles!lessons_teacher_id_fkey(name)')
+      .select('id, date, start_time, end_time, status, teacher_id, teacher:profiles!lessons_teacher_id_fkey(name)')
       .eq('student_id', currentUserId)
       .order('date')
       .order('start_time')
@@ -111,6 +114,18 @@ export function StudentTabs({
       teacher: Array.isArray(l.teacher) ? l.teacher[0] : l.teacher,
     }))
     setLessons(mapped as Lesson[])
+  }
+
+  async function cancelLesson(l: Lesson, reason: string, comment: string) {
+    await supabase.from('lessons').update({ status: 'cancelled' }).eq('id', l.id)
+    const dateLabel = new Date(l.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    let text = `Занятие ${dateLabel} в ${hhmm(l.start_time)} отменено учеником`
+    if (reason) text += `. Причина: ${reason}`
+    if (comment) text += `. Комментарий: ${comment}`
+    if (l.teacher_id) {
+      await supabase.rpc('create_notification', { p_user_id: l.teacher_id, p_text: text })
+    }
+    loadLessons()
   }
 
   async function loadPendingHw() {
@@ -310,8 +325,17 @@ export function StudentTabs({
                               </span>
                             )}
                           </span>
-                          <span className={`badge ${STATUS[l.status]?.cls ?? ''}`}>
-                            {STATUS[l.status]?.label ?? l.status}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className={`badge ${STATUS[l.status]?.cls ?? ''}`}>
+                              {STATUS[l.status]?.label ?? l.status}
+                            </span>
+                            <button
+                              className="lesson-cancel"
+                              onClick={() => setCancelModal({ lesson: l })}
+                              style={{ fontSize: 12 }}
+                            >
+                              Отменить
+                            </button>
                           </span>
                         </li>
                       ))}
@@ -432,6 +456,17 @@ export function StudentTabs({
         <div className="student-tab-content">
           <ProfileEdit />
         </div>
+      )}
+    {cancelModal && (
+        <CancelLessonModal
+          role="student"
+          lessonDate={`${new Date(cancelModal.lesson.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${hhmm(cancelModal.lesson.start_time)}`}
+          onClose={() => setCancelModal(null)}
+          onConfirm={(reason, comment) => {
+            cancelLesson(cancelModal.lesson, reason, comment)
+            setCancelModal(null)
+          }}
+        />
       )}
     </div>
   )

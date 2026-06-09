@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CancelLessonModal } from '@/components/cancel-lesson-modal'
 
 const hhmm = (t: string) => t.slice(0, 5)
 
@@ -75,6 +76,7 @@ export function TeacherLessons({ students }: { students: Student[] }) {
   const [filterStudentId, setFilterStudentId] = useState<string>('all')
   // Подтверждение удаления: хранит id урока, ожидающего подтверждения
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [cancelModal, setCancelModal] = useState<{ lesson: Lesson } | null>(null)
   // Перенос урока: id переносимого урока + новые значения
   const [rescheduleId, setRescheduleId] = useState<string | null>(null)
   const [rescheduleVals, setRescheduleVals] = useState<RescheduleVals>({ date: '', start: '', end: '' })
@@ -110,12 +112,14 @@ export function TeacherLessons({ students }: { students: Student[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function setStatus(l: Lesson, status: 'completed' | 'cancelled') {
+  async function setStatus(l: Lesson, status: 'completed' | 'cancelled', reason?: string, comment?: string) {
     await supabase.from('lessons').update({ status }).eq('id', l.id)
     const dateLabel = new Date(l.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-    const text = status === 'completed'
+    let text = status === 'completed'
       ? `Занятие ${dateLabel} в ${hhmm(l.start_time)} отмечено как проведённое`
       : `Занятие ${dateLabel} в ${hhmm(l.start_time)} отменено учителем`
+    if (reason) text += `. Причина: ${reason}`
+    if (comment) text += `. Комментарий: ${comment}`
     await supabase.rpc('create_notification', { p_user_id: l.student_id, p_text: text })
     load()
   }
@@ -422,7 +426,7 @@ export function TeacherLessons({ students }: { students: Student[] }) {
                                 >
                                   Провёл
                                 </button>
-                                <button className="lesson-cancel" onClick={() => { setStatus(l, 'cancelled'); setConfirmDeleteId(null) }}>
+                                <button className="lesson-cancel" onClick={() => { setCancelModal({ lesson: l }); setConfirmDeleteId(null) }}>
                                   Отменил
                                 </button>
                                 <button className="lesson-cancel" style={{ color: 'var(--text-soft)' }} onClick={() => startReschedule(l)}>
@@ -480,6 +484,17 @@ export function TeacherLessons({ students }: { students: Student[] }) {
           )
         })
       })()}
+    {cancelModal && (
+        <CancelLessonModal
+          role="teacher"
+          lessonDate={`${new Date(cancelModal.lesson.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} в ${hhmm(cancelModal.lesson.start_time)}`}
+          onClose={() => setCancelModal(null)}
+          onConfirm={(reason, comment) => {
+            setStatus(cancelModal.lesson, 'cancelled', reason, comment)
+            setCancelModal(null)
+          }}
+        />
+      )}
     </div>
   )
 }
