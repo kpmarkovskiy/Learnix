@@ -15,7 +15,7 @@ export default async function StudentPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, role')
+    .select('name, role, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -23,11 +23,11 @@ export default async function StudentPage() {
 
   const { data: teachers } = await supabase
     .from('enrollments')
-    .select('id, teacher:profiles!enrollments_teacher_id_fkey(id, name, email)')
+    .select('id, teacher:profiles!enrollments_teacher_id_fkey(id, name, email, avatar_url)')
     .eq('student_id', user.id)
 
   const teacherList = (teachers ?? [])
-    .map((r: any) => ({ id: r.teacher?.id, name: r.teacher?.name }))
+    .map((r: any) => ({ id: r.teacher?.id, name: r.teacher?.name, avatar_url: r.teacher?.avatar_url ?? null }))
     .filter((t: any) => t.id)
 
   return (
@@ -48,6 +48,7 @@ export default async function StudentPage() {
           <StudentTabs
             teachers={teacherList}
             currentUserId={user.id}
+            currentUserAvatar={profile?.avatar_url ?? null}
           />
         </div>
       </main>

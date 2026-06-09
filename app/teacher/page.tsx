@@ -12,7 +12,7 @@ export default async function TeacherPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, role, invite_code')
+    .select('name, role, invite_code, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -20,11 +20,11 @@ export default async function TeacherPage() {
 
   const { data: students } = await supabase
     .from('enrollments')
-    .select('id, student:profiles!enrollments_student_id_fkey(id, name, email)')
+    .select('id, student:profiles!enrollments_student_id_fkey(id, name, email, avatar_url)')
     .eq('teacher_id', user.id)
 
   const studentList = (students ?? [])
-    .map((r: any) => ({ id: r.student?.id, name: r.student?.name, email: r.student?.email }))
+    .map((r: any) => ({ id: r.student?.id, name: r.student?.name, email: r.student?.email, avatar_url: r.student?.avatar_url ?? null }))
     .filter((s: any) => s.id)
 
   return (
@@ -33,6 +33,7 @@ export default async function TeacherPage() {
       inviteCode={profile?.invite_code ?? null}
       students={studentList}
       currentUserId={user.id}
+      currentUserAvatar={profile?.avatar_url ?? null}
     />
   )
 }

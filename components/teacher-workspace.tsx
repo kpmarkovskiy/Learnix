@@ -11,7 +11,7 @@ import { NotificationBell } from '@/components/notification-bell'
 import { Chat } from '@/components/chat'
 import { ProfileEdit } from '@/components/profile-edit'
 
-type Student = { id: string; name: string; email: string }
+type Student = { id: string; name: string; email: string; avatar_url?: string | null }
 type Tab = 'students' | 'add' | 'lessons' | 'homework' | 'chat' | 'profile'
 
 const NAV: { id: Tab; label: string }[] = [
@@ -28,14 +28,16 @@ export function TeacherWorkspace({
   inviteCode,
   students,
   currentUserId,
+  currentUserAvatar,
 }: {
   name: string
   inviteCode: string | null
   students: Student[]
   currentUserId: string
+  currentUserAvatar?: string | null
 }) {
   const [tab, setTab] = useState<Tab>('students')
-  const slim = students.map((s) => ({ id: s.id, name: s.name }))
+  const slim = students.map((s) => ({ id: s.id, name: s.name, avatar_url: s.avatar_url ?? null }))
 
   return (
     <div className="shell">
@@ -73,7 +75,7 @@ export function TeacherWorkspace({
         {tab === 'add'       && <TeacherAddLesson students={slim} />}
         {tab === 'lessons'   && <TeacherLessons students={slim} />}
         {tab === 'homework'  && <TeacherHomework students={slim} />}
-        {tab === 'chat'      && <Chat peers={slim} currentUserId={currentUserId} role="teacher" />}
+        {tab === 'chat'      && <Chat peers={slim} currentUserId={currentUserId} role="teacher" currentUserAvatar={currentUserAvatar} />}
         {tab === 'profile'   && <ProfileEdit />}
       </main>
     </div>

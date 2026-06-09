@@ -19,7 +19,7 @@ type Lesson = {
   teacher_id?: string
   teacher?: { name: string }
 }
-type Teacher = { id: string; name: string }
+type Teacher = { id: string; name: string; avatar_url?: string | null }
 type Tab = 'schedule' | 'availability' | 'teachers' | 'homework' | 'chat' | 'profile'
 
 const hhmm = (t: string) => t.slice(0, 5)
@@ -91,9 +91,11 @@ const TABS: { id: Tab; label: string }[] = [
 export function StudentTabs({
   teachers,
   currentUserId,
+  currentUserAvatar,
 }: {
   teachers: Teacher[]
   currentUserId: string
+  currentUserAvatar?: string | null
 }) {
   const [tab, setTab] = useState<Tab>('schedule')
   const [showHistory, setShowHistory] = useState(false)
@@ -129,11 +131,18 @@ export function StudentTabs({
   }
 
   async function loadPendingHw() {
-    const { data: hw } = await supabase.from('homework').select('id')
-    const { data: subs } = await supabase
-      .from('homework_submissions')
-      .select('homework_id')
-      .eq('student_id', currentUserId)
+    const teacherIds = teachers.map(t => t.id)
+    const { data: hw } = teacherIds.length > 0
+      ? await supabase.from('homework').select('id').in('teacher_id', teacherIds)
+      : { data: [] }
+    const hwIds = (hw ?? []).map((h: { id: string }) => h.id)
+    const { data: subs } = hwIds.length > 0
+      ? await supabase
+          .from('homework_submissions')
+          .select('homework_id')
+          .eq('student_id', currentUserId)
+          .in('homework_id', hwIds)
+      : { data: [] }
     const submittedIds = new Set((subs ?? []).map((s: { homework_id: string }) => s.homework_id))
     const pending = (hw ?? []).filter((h: { id: string }) => !submittedIds.has(h.id))
     setPendingHwCount(pending.length)
@@ -441,6 +450,7 @@ export function StudentTabs({
             currentUserId={currentUserId}
             role="student"
             teacherId={teachers[0]?.id}
+            currentUserAvatar={currentUserAvatar}
           />
         </div>
       )}

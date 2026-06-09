@@ -70,16 +70,18 @@ export function TeacherHomework({ students }: { students: Student[] }) {
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: hw }, { data: sb }] = await Promise.all([
-      supabase
-        .from('homework')
-        .select('id, title, description, deadline, created_at, attachments')
-        .eq('teacher_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('homework_submissions')
-        .select('id, homework_id, student_id, comment, submitted_at, attachments, status, review_comment'),
-    ])
+    const { data: hw } = await supabase
+      .from('homework')
+      .select('id, title, description, deadline, created_at, attachments')
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false })
+    const hwIds = (hw ?? []).map((h: { id: string }) => h.id)
+    const { data: sb } = hwIds.length > 0
+      ? await supabase
+          .from('homework_submissions')
+          .select('id, homework_id, student_id, comment, submitted_at, attachments, status, review_comment')
+          .in('homework_id', hwIds)
+      : { data: [] }
     setList(((hw ?? []) as any[]).map((h) => ({
       ...h,
       attachments: Array.isArray(h.attachments) ? h.attachments : [],
