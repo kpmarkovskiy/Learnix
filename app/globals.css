@@ -1085,6 +1085,7 @@ option {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  align-items: stretch;
 }
 .chat-loading, .chat-no-msgs {
   text-align: center;
@@ -1109,7 +1110,8 @@ option {
 .chat-msg-row.mine { justify-content: flex-end; }
 .chat-msg-row.theirs { justify-content: flex-start; }
 .chat-bubble {
-  max-width: 68%;
+  max-width: 100%;
+  min-width: 80px;
   padding: 9px 13px;
   border-radius: 14px;
   font-size: 14px;
@@ -1117,6 +1119,9 @@ option {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .chat-msg-row.mine .chat-bubble {
   background: var(--accent);

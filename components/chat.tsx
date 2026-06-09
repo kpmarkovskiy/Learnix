@@ -296,24 +296,24 @@ export function Chat({
               {msgs.map((msg) => {
                 const mine = msg.sender_id === currentUserId
                 return (
-                  <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`}>
-                    {!mine && (
-  <Avatar
-    name={msg.sender?.name ?? '?'}
-    avatarUrl={msg.sender?.avatar_url}
-    size={32}
-  />
-)}
-<div style={{ display: 'flex', flexDirection: 'column', maxWidth: '70%', minWidth: '120px' }}>
-                      {!mine && mode !== 'direct' && (
-                        <span className="chat-sender-name">{msg.sender?.name}</span>
-                      )}
-                      <div className="chat-bubble">
-                        <span className="chat-bubble-text">{msg.text}</span>
-                        <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`} style={{ alignItems: 'flex-end', gap: 8 }}>
+  {!mine && (
+    <Avatar
+      name={msg.sender?.name ?? '?'}
+      avatarUrl={msg.sender?.avatar_url}
+      size={32}
+    />
+  )}
+  <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '70%', minWidth: 0, alignSelf: mine ? 'flex-end' : 'flex-start' }}>
+    {!mine && mode !== 'direct' && (
+      <span className="chat-sender-name">{msg.sender?.name}</span>
+    )}
+    <div className="chat-bubble">
+      <span className="chat-bubble-text">{msg.text}</span>
+      <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
+    </div>
+  </div>
+</div>
                 )
               })}
             </div>
