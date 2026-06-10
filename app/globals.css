@@ -1014,7 +1014,7 @@ option {
   display: grid;
   grid-template-columns: 220px 1fr;
   gap: 0;
-  height: calc(100vh - 140px);
+  height: calc(100vh - 80px);
   min-height: 480px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1244,6 +1244,7 @@ option {
 .student-tab-btn:hover { color: var(--text); }
 .student-tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent); }
 .student-tab-content { padding-top: 4px; }
+.student-tab-content.chat-tab { padding-top: 0; margin: 0 -32px -48px; }
 
 .chat-sender-name {
   font-size: 11px;

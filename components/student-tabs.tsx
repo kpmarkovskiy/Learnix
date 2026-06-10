@@ -444,7 +444,7 @@ export function StudentTabs({
 
       {/* ── Чат ── */}
       {tab === 'chat' && (
-        <div className="student-tab-content">
+        <div className="student-tab-content chat-tab">
           <Chat
             peers={teachers}
             currentUserId={currentUserId}
