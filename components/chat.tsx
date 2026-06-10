@@ -3,11 +3,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+const supabase = createClient()
+
+async function getSignedUrl(filePath: string) {
+  const { data, error } = await supabase.storage
+    .from('chat-files')
+    .createSignedUrl(filePath, 60 * 60)
+
+  if (error) {
+    console.error('SIGNED URL ERROR:', error)
+    return null
+  }
+
+  return data.signedUrl
+}
+
 type Message = {
   id: string
   sender_id: string
   receiver_id: string | null
   text: string | null
+  file_url: string | null
   created_at: string
   chat_type: 'direct' | 'announcement' | 'group'
   sender?: { name: string; avatar_url: string | null }
@@ -65,16 +81,19 @@ export function Chat({
   role: 'teacher' | 'student'
   teacherId?: string
   currentUserAvatar?: string | null
-}) {
+}) 
+
+{
   const [mode, setMode] = useState<ChatMode>('announcement')
   const [activePeer, setActivePeer] = useState<Peer | null>(peers[0] ?? null)
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
+  const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [currentUserName, setCurrentUserName] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const supabase = createClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.from('profiles').select('name').eq('id', currentUserId).single()
@@ -85,7 +104,7 @@ export function Chat({
     setLoading(true)
     let query = supabase
       .from('messages')
-      .select('id, sender_id, receiver_id, text, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
+      .select('id, sender_id, receiver_id, text, file_url, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
       .order('created_at')
 
     if (mode === 'announcement') {
@@ -183,14 +202,32 @@ export function Chat({
     (mode === 'announcement' && role === 'teacher')
 
   async function send() {
-    if (!text.trim() || !canWrite) return
+    if ((!text.trim() && !file) || !canWrite) return
+    let uploadedFileUrl: string | null = null
+
+  if (file) {
+  const ext = file.name.split('.').pop()
+  const fileName = `${Date.now()}.${ext}`
+
+  const { error } = await supabase.storage
+    .from('chat-files')
+    .upload(fileName, file)
+
+  console.log('UPLOAD ERROR:', error)
+
+  if (!error) {
+    uploadedFileUrl = fileName
+  }
+}
     const t = text.trim()
     setText('')
+    setFile(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
     const payload: Record<string, unknown> = {
       sender_id: currentUserId,
       text: t,
+      file_url: uploadedFileUrl,
       chat_type: mode,
       receiver_id: null,
     }
@@ -325,6 +362,9 @@ export function Chat({
                       )}
                       <div className="chat-bubble">
                         <span className="chat-bubble-text">{msg.text}</span>
+                        {msg.file_url && (
+                          <FileLink filePath={msg.file_url} />
+                        )}
                         <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
                       </div>
                     </div>
@@ -338,6 +378,34 @@ export function Chat({
 
         {canWrite ? (
           <div className="chat-input-row">
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+
+            <button
+              type="button"
+              className="chat-send-btn"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              📎
+            </button>
+            {file && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-soft)',
+                  maxWidth: 150,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {file.name}
+              </span>
+            )}
             <textarea
               ref={textareaRef}
               className="chat-input"
@@ -368,6 +436,81 @@ export function Chat({
             Только учитель может писать объявления
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function FileLink({ filePath }: { filePath: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const signed = await getSignedUrl(filePath)
+      setUrl(signed)
+    }
+
+    load()
+  }, [filePath])
+
+  if (!url) {
+    return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
+  }
+
+  const isImage =
+    filePath.endsWith('.png') ||
+    filePath.endsWith('.jpg') ||
+    filePath.endsWith('.jpeg') ||
+    filePath.endsWith('.webp')
+
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        padding: 10,
+        background: '#f3f4f6',
+        borderRadius: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      {isImage && (
+        <img
+          src={url}
+          style={{
+            width: '100%',
+            borderRadius: 8,
+            maxHeight: 250,
+            objectFit: 'cover',
+          }}
+        />
+      )}
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <span style={{ fontSize: 13 }}>
+          📎 {filePath.split('/').pop()}
+        </span>
+
+        {/* ✅ ВАЖНО: это и есть скачивание */}
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            marginLeft: 'auto',
+            padding: '6px 10px',
+            borderRadius: 8,
+            border: '1px solid #ddd',
+            background: 'white',
+            cursor: 'pointer',
+            fontSize: 13,
+            textDecoration: 'none',
+            color: '#000',
+          }}
+        >
+          Скачать
+        </a>
       </div>
     </div>
   )
