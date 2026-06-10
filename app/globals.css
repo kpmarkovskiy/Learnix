@@ -1114,8 +1114,8 @@ option {
 .chat-msg-body {
   display: flex;
   flex-direction: column;
-  max-width: 70%;
-  min-width: 0;
+  max-width: 85%;
+  min-width: 120px;
 }
 .chat-msg-row.mine .chat-msg-body { align-items: flex-end; }
 .chat-msg-row.theirs .chat-msg-body { align-items: flex-start; }
