@@ -145,7 +145,25 @@ export function Chat({
 
         setMessages((prev) => {
   if (prev.some((m) => m.id === msg.id)) return prev
-  new Audio('/discord-notification.mp3').play().catch(() => {})
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+    const playTone = (freq: number, startTime: number, duration: number, gainValue: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, startTime)
+      gain.gain.setValueAtTime(0, startTime)
+      gain.gain.linearRampToValueAtTime(gainValue, startTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+      osc.start(startTime)
+      osc.stop(startTime + duration)
+    }
+    const t = ctx.currentTime
+    playTone(880, t, 0.18, 0.12)
+    playTone(1100, t + 0.12, 0.22, 0.09)
+  } catch { /* ignore */ }
   return [...prev, { ...msg, sender: profile ?? undefined }]
 })
       })
