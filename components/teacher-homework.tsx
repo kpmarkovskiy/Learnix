@@ -115,7 +115,8 @@ export function TeacherHomework({ students }: { students: Student[] }) {
     // Загружаем файлы учителя
     const teacherAttachments: Attachment[] = []
     for (const file of newFiles) {
-      const path = `teacher/${user.id}/${Date.now()}_${file.name}`
+      const ext = file.name.split('.').pop()
+const path = `teacher/${user.id}/${Date.now()}.${ext}`
       const { error } = await supabase.storage.from('homework-attachments').upload(path, file)
       if (!error) {
         const { data: { publicUrl } } = supabase.storage.from('homework-attachments').getPublicUrl(path)
@@ -212,12 +213,42 @@ export function TeacherHomework({ students }: { students: Student[] }) {
       {/* Модалка проверки */}
       {reviewing && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 24, width: '100%', maxWidth: 460 }}>
+          
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 28, width: '100%', maxWidth: 600 }}>
             <h3 style={{ marginBottom: 4 }}>Проверка работы</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 16 }}>
-              {reviewing.studentName} · {reviewing.hwTitle}
-            </p>
-            <div className="field">
+<p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 16 }}>
+  {reviewing.studentName} · {reviewing.hwTitle}
+</p>
+{(() => {
+  const sub = subs.find((s) => s.id === reviewing.subId)
+  return sub?.attachments?.length ? (
+    <div style={{ marginBottom: 16 }}>
+      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-soft)', margin: '0 0 8px' }}>Работа ученика:</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {sub.attachments.map((a, i) => {
+          const isImage = a.mime?.startsWith('image/')
+          if (isImage) return (
+            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', maxWidth: '100%' }}>
+              <img src={a.url} alt={a.name} style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
+            </a>
+          )
+          return (
+            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}>
+              <AttachIcon mime={a.mime} />
+              <span style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+            </a>
+          )
+        })}
+      </div>
+      {sub.comment && (
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', margin: '10px 0 0', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+          {sub.comment}
+        </p>
+      )}
+    </div>
+  ) : null
+})()}
+<div className="field">
               <label>Комментарий (необязательно)</label>
               <input
                 value={reviewComment}
