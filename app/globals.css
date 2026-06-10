@@ -291,7 +291,11 @@ h1, h2, h3 {
 .dash-header .brand-mark span { color: var(--accent); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
  
-.dash-main { max-width: 880px; margin: 0 auto; padding: 48px 32px; }
+.dash-main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
 .dash-main h1 { font-size: 34px; margin-bottom: 8px; }
 .dash-main .lead { color: var(--text-soft); font-size: 16px; }
  
@@ -823,7 +827,11 @@ option {
 .shell-foot .theme-toggle,
 .shell-foot .btn-ghost { width: 100%; text-align: center; }
  
-.shell-main { padding: 36px 40px; max-width: 1180px; }
+.shell-main {
+  padding: 36px 40px;
+  width: 100%;
+  max-width: none;
+}
 .shell-head { margin-bottom: 16px; }
 .shell-head h1 { font-size: 30px; margin-bottom: 6px; }
  
