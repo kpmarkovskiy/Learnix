@@ -1365,6 +1365,33 @@ option {
   overflow-y: auto;
 }
 
+@keyframes chat-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .4; transform: scale(.75); }
+}
+.chat-recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+  padding: 0 4px;
+}
+.chat-recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: chat-pulse .9s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.chat-send-btn--stop {
+  background: var(--danger) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
 .chat-sender-name {
   font-size: 11px;
   color: var(--text-faint);

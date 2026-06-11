@@ -89,11 +89,16 @@ export function Chat({
   const [forwardMsg, setForwardMsg]   = useState<Message | null>(null)
   const [copiedId, setCopiedId]       = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [recording, setRecording]     = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
   const [loading, setLoading]         = useState(false)
   const [currentUserName, setCurrentUserName] = useState('')
-  const bottomRef   = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const bottomRef        = useRef<HTMLDivElement>(null)
+  const textareaRef      = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef     = useRef<HTMLInputElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef   = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     supabase.from('profiles').select('name').eq('id', currentUserId).single()
@@ -201,6 +206,78 @@ export function Chat({
   async function deleteMessage(id: string) {
     const { error } = await supabase.from('messages').delete().eq('id', id).eq('sender_id', currentUserId)
     if (!error) setMessages(prev => prev.filter(m => m.id !== id))
+  }
+
+  const fmtRecordTime = (sec: number) =>
+    `${Math.floor(sec / 60).toString().padStart(2, '0')}:${(sec % 60).toString().padStart(2, '0')}`
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      audioChunksRef.current = []
+
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+
+        if (audioChunksRef.current.length === 0) {
+          alert('Запись не удалась — нет данных')
+          return
+        }
+
+        const mType = mr.mimeType || 'audio/webm'
+        const blob  = new Blob(audioChunksRef.current, { type: mType })
+        const ext   = mType.includes('ogg') ? 'ogg' : mType.includes('mp4') ? 'mp4' : 'webm'
+        const fileName = `voice_${Date.now()}.${ext}`
+
+        const { error: uploadErr } = await supabase.storage.from('chat-files').upload(fileName, blob)
+        if (uploadErr) {
+          alert(`Ошибка загрузки голосового: ${uploadErr.message}`)
+          return
+        }
+
+        const payload: Record<string, unknown> = {
+          sender_id: currentUserId,
+          text: null,
+          file_url: fileName,
+          chat_type: mode,
+          receiver_id: mode === 'direct' && activePeer ? activePeer.id : null,
+          reply_to_id: null, reply_to_text: null, reply_to_sender: null,
+        }
+        const { error: insertErr } = await supabase.from('messages').insert(payload)
+        if (insertErr) {
+          alert(`Ошибка отправки: ${insertErr.message}`)
+          return
+        }
+
+        const myName = currentUserName || 'пользователь'
+        if (mode === 'announcement' && role === 'teacher') {
+          for (const peer of peers) await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `🎤 Голосовое от ${myName}` })
+        } else if (mode === 'group') {
+          for (const peer of peers) await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `🎤 Голосовое в общем чате от ${myName}` })
+        } else if (mode === 'direct' && activePeer) {
+          await supabase.rpc('create_notification', { p_user_id: activePeer.id, p_text: `🎤 Голосовое от ${myName}` })
+        }
+      }
+
+      mr.start()
+      mediaRecorderRef.current = mr
+      setRecording(true)
+      setRecordingTime(0)
+      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
+    } catch {
+      alert('Нет доступа к микрофону')
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop()
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+    setRecording(false)
   }
 
   async function copyMessage(msgId: string, t: string) {
@@ -457,10 +534,18 @@ export function Chat({
             <div className="chat-input-row">
               <input ref={fileInputRef} type="file" style={{ display: 'none' }}
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <button type="button" className="chat-send-btn" onClick={() => fileInputRef.current?.click()}>📎</button>
-              {file && (
+              {!recording && (
+                <button type="button" className="chat-send-btn" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">📎</button>
+              )}
+              {!recording && file && (
                 <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {file.name}
+                </span>
+              )}
+              {recording && (
+                <span className="chat-recording-indicator">
+                  <span className="chat-recording-dot" />
+                  {fmtRecordTime(recordingTime)}
                 </span>
               )}
               <textarea
@@ -476,9 +561,16 @@ export function Chat({
                 }
                 rows={1}
               />
-              <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
-                Отправить
-              </button>
+              {!recording ? (
+                <button type="button" className="chat-send-btn" onClick={startRecording} title="Голосовое сообщение">🎤</button>
+              ) : (
+                <button type="button" className="chat-send-btn chat-send-btn--stop" onClick={stopRecording} title="Остановить и отправить">⏹ Отправить</button>
+              )}
+              {!recording && (
+                <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
+                  Отправить
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -499,6 +591,15 @@ function FileLink({ filePath }: { filePath: string }) {
   }, [filePath])
 
   if (!url) return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
+
+  const isAudio = /\.(webm|ogg|mp3|m4a|wav|mp4)$/i.test(filePath) && filePath.startsWith('voice_')
+  if (isAudio) {
+    return (
+      <div style={{ marginTop: 6 }}>
+        <audio controls src={url} style={{ width: '100%', maxWidth: 280, height: 36 }} />
+      </div>
+    )
+  }
 
   const lower = filePath.toLowerCase()
   const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(filePath)
