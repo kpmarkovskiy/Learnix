@@ -457,11 +457,24 @@ function FileLink({ filePath }: { filePath: string }) {
     return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
   }
 
+  const lower = filePath.toLowerCase()
+
   const isImage =
-    filePath.endsWith('.png') ||
-    filePath.endsWith('.jpg') ||
-    filePath.endsWith('.jpeg') ||
-    filePath.endsWith('.webp')
+    lower.endsWith('.png') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.webp') ||
+    lower.endsWith('.gif') ||
+    lower.endsWith('.bmp') ||
+    lower.endsWith('.svg')
+
+    let icon = '📄'
+
+    if (lower.endsWith('.pdf')) icon = '📕'
+    else if (lower.endsWith('.doc') || lower.endsWith('.docx')) icon = '📝'
+    else if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) icon = '📊'
+    else if (lower.endsWith('.zip') || lower.endsWith('.rar')) icon = '🗜️'
+    else if (isImage) icon = '🖼️'
 
   return (
     <div
@@ -488,8 +501,14 @@ function FileLink({ filePath }: { filePath: string }) {
       )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <span style={{ fontSize: 13 }}>
-          📎 {filePath.split('/').pop()}
+        <span
+          style={{
+            fontSize: 13,
+            color: '#000',
+            fontWeight: 500,
+          }}
+        >
+          {icon} {filePath.split('/').pop()}
         </span>
 
         {/* ✅ ВАЖНО: это и есть скачивание */}
