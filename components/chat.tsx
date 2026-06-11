@@ -133,6 +133,9 @@ function RecordingWaveform({ isRecording }: { isRecording: boolean }) {
   )
 }
 
+// ── Синглтон: только один плеер играет одновременно ──
+const activePlayer: { stop: (() => void) | null } = { stop: null }
+
 // ── Кастомный аудио плеер с волной ──
 function VoicePlayer({ url }: { url: string }) {
   const [playing, setPlaying] = useState(false)
@@ -140,30 +143,20 @@ function VoicePlayer({ url }: { url: string }) {
   const [duration, setDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const animFrameRef = useRef<number>(0)
 
   const drawWave = useCallback(() => {
     const canvas = canvasRef.current
-    const analyser = analyserRef.current
-    if (!canvas || !analyser) return
+    if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const bufferLength = analyser.frequencyBinCount
-    const dataArray = new Uint8Array(bufferLength)
-    analyser.getByteFrequencyData(dataArray)
-
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    const barWidth = (canvas.width / bufferLength) * 2
-    let x = 0
-    for (let i = 0; i < bufferLength; i++) {
-      const barHeight = (dataArray[i] / 255) * canvas.height
-      const alpha = 0.4 + 0.6 * (dataArray[i] / 255)
-      ctx.fillStyle = `rgba(107, 124, 255, ${alpha})`
-      ctx.fillRect(x, (canvas.height - barHeight) / 2, barWidth - 1, barHeight)
-      x += barWidth
+    const bars = 32
+    const barW = canvas.width / bars
+    for (let i = 0; i < bars; i++) {
+      const h = 6 + Math.abs(Math.sin(Date.now() / 200 + i * 0.4)) * 20
+      ctx.fillStyle = `rgba(107, 124, 255, 0.7)`
+      ctx.fillRect(i * barW + 1, (canvas.height - h) / 2, barW - 2, h)
     }
     animFrameRef.current = requestAnimationFrame(drawWave)
   }, [])
@@ -185,6 +178,7 @@ function VoicePlayer({ url }: { url: string }) {
 
   useEffect(() => {
     const audio = new Audio(url)
+    audio.preload = 'metadata'
     audioRef.current = audio
     audio.onloadedmetadata = () => setDuration(audio.duration)
     audio.ontimeupdate = () => setProgress(audio.currentTime / (audio.duration || 1))
@@ -193,16 +187,17 @@ function VoicePlayer({ url }: { url: string }) {
       setProgress(0)
       cancelAnimationFrame(animFrameRef.current)
       drawIdle()
+      activePlayer.stop = null
     }
     drawIdle()
     return () => {
       audio.pause()
+      audio.src = ''
       cancelAnimationFrame(animFrameRef.current)
-      audioCtxRef.current?.close()
     }
   }, [url, drawIdle])
 
-  function togglePlay() {
+  async function togglePlay() {
     const audio = audioRef.current
     if (!audio) return
     if (playing) {
@@ -211,20 +206,23 @@ function VoicePlayer({ url }: { url: string }) {
       setPlaying(false)
       drawIdle()
     } else {
-      if (!audioCtxRef.current) {
-        const actx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-        audioCtxRef.current = actx
-        const analyser = actx.createAnalyser()
-        analyser.fftSize = 64
-        analyserRef.current = analyser
-        const source = actx.createMediaElementSource(audio)
-        sourceRef.current = source
-        source.connect(analyser)
-        analyser.connect(actx.destination)
+      // Остановить предыдущий плеер если играет
+      if (activePlayer.stop) activePlayer.stop()
+      activePlayer.stop = () => {
+        audio.pause()
+        cancelAnimationFrame(animFrameRef.current)
+        setPlaying(false)
+        drawIdle()
+        activePlayer.stop = null
       }
-      audio.play()
-      setPlaying(true)
-      drawWave()
+      try {
+        await audio.play()
+        setPlaying(true)
+        drawWave()
+      } catch (e) {
+        console.error('[VoicePlayer] audio.play() error:', e)
+        alert(`Не удалось воспроизвести: ${(e as Error).message}`)
+      }
     }
   }
 
@@ -460,11 +458,22 @@ export function Chat({
         const ext   = mType.includes('ogg') ? 'ogg' : mType.includes('mp4') ? 'mp4' : 'webm'
         const fileName = `voice_${Date.now()}.${ext}`
 
-        const { error: uploadErr } = await supabase.storage.from('chat-files').upload(fileName, blob)
-        if (uploadErr) {
-          alert(`Ошибка загрузки голосового: ${uploadErr.message}`)
+        console.log('[Voice] mimeType:', mType, '| chunks:', audioChunksRef.current.length, '| blobSize:', blob.size, '| fileName:', fileName)
+
+        if (blob.size === 0) {
+          alert('Запись пустая (0 байт). Проверьте доступ к микрофону.')
           return
         }
+
+        const { error: uploadErr } = await supabase.storage
+          .from('chat-files')
+          .upload(fileName, blob, { contentType: mType })
+        if (uploadErr) {
+          alert(`Ошибка загрузки голосового: ${uploadErr.message}`)
+          console.error('[Voice] upload error:', uploadErr)
+          return
+        }
+        console.log('[Voice] uploaded OK:', fileName)
 
         const payload: Record<string, unknown> = {
           sender_id: currentUserId,
@@ -746,9 +755,11 @@ export function Chat({
                             <span className="chat-reply-ref-text">{msg.reply_to_text}</span>
                           </div>
                         )}
-                        <span className="chat-bubble-text">{msg.text}</span>
+                        {msg.text && <span className="chat-bubble-text">{msg.text}</span>}
                         {msg.file_url && <FileLink filePath={msg.file_url} />}
-                        <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
+                        <div className="chat-bubble-footer">
+                          <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -802,7 +813,7 @@ export function Chat({
                 </>
               ) : (
                 <>
-                  <button type="button" className="chat-send-btn" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">📎</button>
+                  <button type="button" className="chat-send-btn chat-icon-btn" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">📎</button>
                   {file && (
                     <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {file.name}
@@ -824,14 +835,17 @@ export function Chat({
                   {/* Кнопка микрофона — PNG иконка */}
                   <button
                     type="button"
-                    className="chat-send-btn chat-mic-btn"
+                    className="chat-send-btn chat-icon-btn chat-mic-btn"
                     onClick={startRecording}
                     title="Голосовое сообщение"
                   >
                     <img src={ICON_MIC} alt="Микрофон" style={{ width: 18, height: 18 }} />
                   </button>
-                  <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
-                    Отправить
+                  <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn" title="Отправить">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
                   </button>
                 </>
               )}
@@ -851,7 +865,10 @@ function FileLink({ filePath }: { filePath: string }) {
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    getSignedUrl(filePath).then(setUrl)
+    getSignedUrl(filePath).then(u => {
+      console.log('[FileLink] filePath:', filePath, '| signedUrl:', u ? 'OK' : 'NULL')
+      setUrl(u)
+    })
   }, [filePath])
 
   if (!url) return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
