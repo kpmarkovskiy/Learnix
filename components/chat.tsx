@@ -199,8 +199,8 @@ export function Chat({
     (mode === 'announcement' && role === 'teacher')
 
   async function deleteMessage(id: string) {
-    await supabase.from('messages').delete().eq('id', id)
-    setMessages(prev => prev.filter(m => m.id !== id))
+    const { error } = await supabase.from('messages').delete().eq('id', id).eq('sender_id', currentUserId)
+    if (!error) setMessages(prev => prev.filter(m => m.id !== id))
   }
 
   async function copyMessage(msgId: string, t: string) {
@@ -325,6 +325,23 @@ export function Chat({
         </div>
       )}
 
+      {/* ── Модалка удаления ── */}
+      {confirmDeleteId && (
+        <div className="chat-forward-overlay" onClick={() => setConfirmDeleteId(null)}>
+          <div className="chat-forward-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 320, textAlign: 'center' }}>
+            <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Удалить сообщение?</p>
+            <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 20 }}>Это действие нельзя отменить</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="lesson-cancel" onClick={() => setConfirmDeleteId(null)}>Отмена</button>
+              <button
+                onClick={() => { deleteMessage(confirmDeleteId); setConfirmDeleteId(null) }}
+                style={{ padding: '8px 20px', borderRadius: 10, border: 'none', background: 'var(--danger)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+              >Удалить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Сайдбар ── */}
       <aside className="chat-peers">
         <p className="chat-peers-label">Чаты</p>
@@ -394,19 +411,9 @@ export function Chat({
                           onClick={() => setForwardMsg(msg)}>⇥</button>
                       )}
                       {mine && (
-                        confirmDeleteId === msg.id ? (
-                          <>
-                            <span style={{ fontSize: 11, color: 'var(--text-soft)' }}>Удалить?</span>
-                            <button className="chat-action-btn" style={{ color: 'var(--danger)' }}
-                              onClick={() => { deleteMessage(msg.id); setConfirmDeleteId(null) }}>Да</button>
-                            <button className="chat-action-btn"
-                              onClick={() => setConfirmDeleteId(null)}>Нет</button>
-                          </>
-                        ) : (
-                          <button className="chat-action-btn" title="Удалить"
-                            style={{ color: 'var(--danger)' }}
-                            onClick={() => setConfirmDeleteId(msg.id)}>✕</button>
-                        )
+                        <button className="chat-action-btn" title="Удалить"
+                          style={{ color: 'var(--danger)' }}
+                          onClick={() => setConfirmDeleteId(msg.id)}>✕</button>
                       )}
                     </div>
 
