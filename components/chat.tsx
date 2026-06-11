@@ -116,7 +116,8 @@ export function Chat({
       const tId = role === 'teacher' ? currentUserId : teacherId
       query = query.eq('chat_type', 'announcement').eq('sender_id', tId ?? '')
     } else if (mode === 'group') {
-      query = query.eq('chat_type', 'group')
+      const tId = role === 'teacher' ? currentUserId : teacherId
+      query = query.eq('chat_type', 'group').eq('receiver_id', tId ?? '')
     } else if (mode === 'direct' && activePeer) {
       query = query
         .eq('chat_type', 'direct')
@@ -131,8 +132,11 @@ export function Chat({
   useEffect(() => {
     loadMessages()
 
+    const groupTId = role === 'teacher' ? currentUserId : teacherId
     const channelKey = mode === 'direct'
-      ? `chat-direct-${currentUserId}-${activePeer?.id}`
+      ? `chat-direct-${[currentUserId, activePeer?.id].sort().join('-')}`
+      : mode === 'group'
+      ? `chat-group-${groupTId}`
       : `chat-${mode}-${currentUserId}`
 
     const channel = supabase
@@ -145,9 +149,8 @@ export function Chat({
           const tId = role === 'teacher' ? currentUserId : teacherId
           relevant = msg.sender_id === tId
         } else if (mode === 'group' && msg.chat_type === 'group') {
-          relevant = role === 'student' && teacherId
-            ? msg.sender_id === teacherId || msg.sender_id === currentUserId
-            : true
+          const tId = role === 'teacher' ? currentUserId : teacherId
+          relevant = msg.receiver_id === tId
         } else if (mode === 'direct' && msg.chat_type === 'direct' && activePeer) {
           relevant =
             (msg.sender_id === currentUserId && msg.receiver_id === activePeer.id) ||
@@ -245,7 +248,10 @@ export function Chat({
           text: null,
           file_url: fileName,
           chat_type: mode,
-          receiver_id: mode === 'direct' && activePeer ? activePeer.id : null,
+          receiver_id: mode === 'direct' && activePeer
+            ? activePeer.id
+            : mode === 'group' ? (role === 'teacher' ? currentUserId : (teacherId ?? null))
+            : null,
           reply_to_id: null, reply_to_text: null, reply_to_sender: null,
         }
         const { error: insertErr } = await supabase.from('messages').insert(payload)
@@ -335,6 +341,8 @@ export function Chat({
 
     if (mode === 'direct' && activePeer) {
       payload.receiver_id = activePeer.id
+    } else if (mode === 'group') {
+      payload.receiver_id = role === 'teacher' ? currentUserId : (teacherId ?? null)
     }
 
     await supabase.from('messages').insert(payload)
@@ -471,6 +479,7 @@ export function Chat({
                 return (
                   <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`}>
                     {!mine && <Avatar name={msg.sender?.name ?? '?'} avatarUrl={msg.sender?.avatar_url} size={32} />}
+                    {mine && <Avatar name={currentUserName || '?'} avatarUrl={currentUserAvatar} size={32} />}
 
                     {/* Панель действий */}
                     <div className="chat-msg-actions">
