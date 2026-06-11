@@ -421,7 +421,7 @@ export function Chat({
               }
               rows={1}
             />
-            <button onClick={send} disabled={!text.trim()} className="chat-send-btn">
+            <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
               Отправить
             </button>
           </div>
