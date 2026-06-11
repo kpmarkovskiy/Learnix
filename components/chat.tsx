@@ -9,12 +9,7 @@ async function getSignedUrl(filePath: string) {
   const { data, error } = await supabase.storage
     .from('chat-files')
     .createSignedUrl(filePath, 60 * 60)
-
-  if (error) {
-    console.error('SIGNED URL ERROR:', error)
-    return null
-  }
-
+  if (error) return null
   return data.signedUrl
 }
 
@@ -27,6 +22,9 @@ type Message = {
   created_at: string
   chat_type: 'direct' | 'announcement' | 'group'
   sender?: { name: string; avatar_url: string | null }
+  reply_to_id: string | null
+  reply_to_text: string | null
+  reply_to_sender: string | null
 }
 
 type Peer = { id: string; name: string; avatar_url?: string | null }
@@ -81,17 +79,18 @@ export function Chat({
   role: 'teacher' | 'student'
   teacherId?: string
   currentUserAvatar?: string | null
-}) 
-
-{
-  const [mode, setMode] = useState<ChatMode>('announcement')
-  const [activePeer, setActivePeer] = useState<Peer | null>(peers[0] ?? null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [text, setText] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(false)
+}) {
+  const [mode, setMode]               = useState<ChatMode>('announcement')
+  const [activePeer, setActivePeer]   = useState<Peer | null>(peers[0] ?? null)
+  const [messages, setMessages]       = useState<Message[]>([])
+  const [text, setText]               = useState('')
+  const [file, setFile]               = useState<File | null>(null)
+  const [replyTo, setReplyTo]         = useState<Message | null>(null)
+  const [forwardMsg, setForwardMsg]   = useState<Message | null>(null)
+  const [copiedId, setCopiedId]       = useState<string | null>(null)
+  const [loading, setLoading]         = useState(false)
   const [currentUserName, setCurrentUserName] = useState('')
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -104,20 +103,18 @@ export function Chat({
     setLoading(true)
     let query = supabase
       .from('messages')
-      .select('id, sender_id, receiver_id, text, file_url, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
+      .select('id, sender_id, receiver_id, text, file_url, reply_to_id, reply_to_text, reply_to_sender, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
       .order('created_at')
 
     if (mode === 'announcement') {
       const tId = role === 'teacher' ? currentUserId : teacherId
       query = query.eq('chat_type', 'announcement').eq('sender_id', tId ?? '')
     } else if (mode === 'group') {
-  query = query.eq('chat_type', 'group')
-} else if (mode === 'direct' && activePeer) {
+      query = query.eq('chat_type', 'group')
+    } else if (mode === 'direct' && activePeer) {
       query = query
         .eq('chat_type', 'direct')
-        .or(
-          `and(sender_id.eq.${currentUserId},receiver_id.eq.${activePeer.id}),and(sender_id.eq.${activePeer.id},receiver_id.eq.${currentUserId})`
-        )
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${activePeer.id}),and(sender_id.eq.${activePeer.id},receiver_id.eq.${currentUserId})`)
     }
 
     const { data } = await query
@@ -128,10 +125,9 @@ export function Chat({
   useEffect(() => {
     loadMessages()
 
-    const channelKey =
-      mode === 'direct'
-        ? `chat-direct-${currentUserId}-${activePeer?.id}`
-        : `chat-${mode}-${currentUserId}`
+    const channelKey = mode === 'direct'
+      ? `chat-direct-${currentUserId}-${activePeer?.id}`
+      : `chat-${mode}-${currentUserId}`
 
     const channel = supabase
       .channel(channelKey)
@@ -143,11 +139,9 @@ export function Chat({
           const tId = role === 'teacher' ? currentUserId : teacherId
           relevant = msg.sender_id === tId
         } else if (mode === 'group' && msg.chat_type === 'group') {
-          if (role === 'student' && teacherId) {
-            relevant = msg.sender_id === teacherId || msg.sender_id === currentUserId
-          } else {
-            relevant = true
-          }
+          relevant = role === 'student' && teacherId
+            ? msg.sender_id === teacherId || msg.sender_id === currentUserId
+            : true
         } else if (mode === 'direct' && msg.chat_type === 'direct' && activePeer) {
           relevant =
             (msg.sender_id === currentUserId && msg.receiver_id === activePeer.id) ||
@@ -163,28 +157,30 @@ export function Chat({
           .single()
 
         setMessages((prev) => {
-  if (prev.some((m) => m.id === msg.id)) return prev
-  try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-    const playTone = (freq: number, startTime: number, duration: number, gainValue: number) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(freq, startTime)
-      gain.gain.setValueAtTime(0, startTime)
-      gain.gain.linearRampToValueAtTime(gainValue, startTime + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
-      osc.start(startTime)
-      osc.stop(startTime + duration)
-    }
-    const t = ctx.currentTime
-    playTone(880, t, 0.18, 0.12)
-    playTone(1100, t + 0.12, 0.22, 0.09)
-  } catch { /* ignore */ }
-  return [...prev, { ...msg, sender: profile ?? undefined }]
-})
+          if (prev.some((m) => m.id === msg.id)) return prev
+          try {
+            const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+            const playTone = (freq: number, startTime: number, dur: number, gain: number) => {
+              const osc = ctx.createOscillator()
+              const g   = ctx.createGain()
+              osc.connect(g); g.connect(ctx.destination)
+              osc.type = 'sine'
+              osc.frequency.setValueAtTime(freq, startTime)
+              g.gain.setValueAtTime(0, startTime)
+              g.gain.linearRampToValueAtTime(gain, startTime + 0.02)
+              g.gain.exponentialRampToValueAtTime(0.001, startTime + dur)
+              osc.start(startTime); osc.stop(startTime + dur)
+            }
+            const t = ctx.currentTime
+            playTone(880, t, 0.18, 0.12)
+            playTone(1100, t + 0.12, 0.22, 0.09)
+          } catch { /* ignore */ }
+          return [...prev, { ...msg, sender: profile ?? undefined }]
+        })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
+        const deleted = payload.old as { id: string }
+        setMessages(prev => prev.filter(m => m.id !== deleted.id))
       })
       .subscribe()
 
@@ -201,35 +197,62 @@ export function Chat({
     mode === 'group' ||
     (mode === 'announcement' && role === 'teacher')
 
+  async function deleteMessage(id: string) {
+    await supabase.from('messages').delete().eq('id', id)
+    setMessages(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function copyMessage(msgId: string, t: string) {
+    await navigator.clipboard.writeText(t)
+    setCopiedId(msgId)
+    setTimeout(() => setCopiedId(null), 1500)
+  }
+
+  async function forward(peer: Peer) {
+    if (!forwardMsg) return
+    await supabase.from('messages').insert({
+      sender_id: currentUserId,
+      text: forwardMsg.text,
+      file_url: forwardMsg.file_url,
+      chat_type: 'direct',
+      receiver_id: peer.id,
+      reply_to_id: null,
+      reply_to_text: null,
+      reply_to_sender: null,
+    })
+    await supabase.rpc('create_notification', {
+      p_user_id: peer.id,
+      p_text: `Новое сообщение от ${currentUserName || 'пользователя'}`,
+    })
+    setForwardMsg(null)
+  }
+
   async function send() {
     if ((!text.trim() && !file) || !canWrite) return
     let uploadedFileUrl: string | null = null
 
-  if (file) {
-  const ext = file.name.split('.').pop()
-  const fileName = `${Date.now()}.${ext}`
+    if (file) {
+      const ext      = file.name.split('.').pop()
+      const fileName = `${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('chat-files').upload(fileName, file)
+      if (!error) uploadedFileUrl = fileName
+    }
 
-  const { error } = await supabase.storage
-    .from('chat-files')
-    .upload(fileName, file)
-
-  console.log('UPLOAD ERROR:', error)
-
-  if (!error) {
-    uploadedFileUrl = fileName
-  }
-}
     const t = text.trim()
     setText('')
     setFile(null)
+    setReplyTo(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
     const payload: Record<string, unknown> = {
-      sender_id: currentUserId,
-      text: t,
-      file_url: uploadedFileUrl,
-      chat_type: mode,
-      receiver_id: null,
+      sender_id:       currentUserId,
+      text:            t || null,
+      file_url:        uploadedFileUrl,
+      chat_type:       mode,
+      receiver_id:     null,
+      reply_to_id:     replyTo?.id     ?? null,
+      reply_to_text:   replyTo?.text   ?? null,
+      reply_to_sender: replyTo?.sender?.name ?? null,
     }
 
     if (mode === 'direct' && activePeer) {
@@ -239,26 +262,16 @@ export function Chat({
     await supabase.from('messages').insert(payload)
 
     const myName = currentUserName || 'пользователь'
-
     if (mode === 'announcement' && role === 'teacher') {
       for (const peer of peers) {
-        await supabase.rpc('create_notification', {
-          p_user_id: peer.id,
-          p_text: `📢 Объявление от ${myName}`,
-        })
+        await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `📢 Объявление от ${myName}` })
       }
     } else if (mode === 'group') {
       for (const peer of peers) {
-        await supabase.rpc('create_notification', {
-          p_user_id: peer.id,
-          p_text: `💬 Сообщение в общем чате от ${myName}`,
-        })
+        await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `💬 Сообщение в общем чате от ${myName}` })
       }
     } else if (mode === 'direct' && activePeer) {
-      await supabase.rpc('create_notification', {
-        p_user_id: activePeer.id,
-        p_text: `Новое сообщение от ${myName}`,
-      })
+      await supabase.rpc('create_notification', { p_user_id: activePeer.id, p_text: `Новое сообщение от ${myName}` })
     }
   }
 
@@ -269,42 +282,59 @@ export function Chat({
   }
 
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
-  const grouped = groupByDay(messages)
-
+  const grouped   = groupByDay(messages)
   const chatTitle =
     mode === 'announcement' ? '📢 Объявления'
-    : mode === 'group' ? '👥 Общий чат'
-    : activePeer ? activePeer.name
+    : mode === 'group'      ? '👥 Общий чат'
+    : activePeer            ? activePeer.name
     : 'Выберите собеседника'
 
   return (
     <div className="chat-layout">
-      {/* Sidebar */}
+
+      {/* ── Модалка пересылки ── */}
+      {forwardMsg && (
+        <div className="chat-forward-overlay" onClick={() => setForwardMsg(null)}>
+          <div className="chat-forward-modal" onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: 8 }}>Переслать сообщение</h3>
+            {forwardMsg.text && (
+              <p style={{ fontSize: 13, color: 'var(--text-soft)', margin: '0 0 16px', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 10, borderLeft: '3px solid var(--accent)' }}>
+                {forwardMsg.text}
+              </p>
+            )}
+            {peers.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-faint)' }}>Нет собеседников для пересылки</p>
+            ) : (
+              <ul className="people-list" style={{ marginBottom: 12 }}>
+                {peers.map(peer => (
+                  <li key={peer.id} className="person-row" style={{ cursor: 'pointer' }} onClick={() => forward(peer)}>
+                    <Avatar name={peer.name} avatarUrl={peer.avatar_url} size={32} />
+                    <span className="person-info">
+                      <span className="person-name">{peer.name}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button className="lesson-cancel" onClick={() => setForwardMsg(null)}>Отмена</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Сайдбар ── */}
       <aside className="chat-peers">
         <p className="chat-peers-label">Чаты</p>
-
-        <button
-          className={`chat-peer-btn ${mode === 'announcement' ? 'active' : ''}`}
-          onClick={() => setMode('announcement')}
-        >
+        <button className={`chat-peer-btn ${mode === 'announcement' ? 'active' : ''}`} onClick={() => setMode('announcement')}>
           <span className="chat-peer-av">📢</span>
           <span className="chat-peer-name">Объявления</span>
         </button>
-
-        <button
-          className={`chat-peer-btn ${mode === 'group' ? 'active' : ''}`}
-          onClick={() => setMode('group')}
-        >
+        <button className={`chat-peer-btn ${mode === 'group' ? 'active' : ''}`} onClick={() => setMode('group')}>
           <span className="chat-peer-av">👥</span>
           <span className="chat-peer-name">Общий чат</span>
         </button>
-
         {peers.length > 0 && (
           <>
             <p className="chat-peers-label" style={{ marginTop: 12 }}>Личные</p>
@@ -322,14 +352,12 @@ export function Chat({
         )}
       </aside>
 
-      {/* Main */}
+      {/* ── Основная область ── */}
       <div className="chat-main">
         <header className="chat-header">
           <span className="chat-header-name">{chatTitle}</span>
           {mode === 'announcement' && role === 'student' && (
-            <span style={{ fontSize: 12, color: 'var(--text-faint)', marginLeft: 8 }}>
-              только чтение
-            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-faint)', marginLeft: 8 }}>только чтение</span>
           )}
         </header>
 
@@ -337,9 +365,7 @@ export function Chat({
           {loading && <p className="chat-loading">Загрузка…</p>}
           {!loading && messages.length === 0 && (
             <p className="chat-no-msgs">
-              {mode === 'announcement' && role === 'student'
-                ? 'Объявлений пока нет'
-                : 'Напишите первое сообщение'}
+              {mode === 'announcement' && role === 'student' ? 'Объявлений пока нет' : 'Напишите первое сообщение'}
             </p>
           )}
           {grouped.map(({ day, msgs }) => (
@@ -349,22 +375,44 @@ export function Chat({
                 const mine = msg.sender_id === currentUserId
                 return (
                   <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`}>
-                    {!mine && (
-                      <Avatar
-                        name={msg.sender?.name ?? '?'}
-                        avatarUrl={msg.sender?.avatar_url}
-                        size={32}
-                      />
-                    )}
+                    {!mine && <Avatar name={msg.sender?.name ?? '?'} avatarUrl={msg.sender?.avatar_url} size={32} />}
+
+                    {/* Панель действий */}
+                    <div className="chat-msg-actions">
+                      <button className="chat-action-btn" title="Ответить"
+                        onClick={() => { setReplyTo(msg); textareaRef.current?.focus() }}>↩</button>
+                      {msg.text && (
+                        <button className="chat-action-btn"
+                          title={copiedId === msg.id ? 'Скопировано!' : 'Копировать'}
+                          onClick={() => copyMessage(msg.id, msg.text!)}>
+                          {copiedId === msg.id ? '✓' : '⊡'}
+                        </button>
+                      )}
+                      {peers.length > 0 && (
+                        <button className="chat-action-btn" title="Переслать"
+                          onClick={() => setForwardMsg(msg)}>⇥</button>
+                      )}
+                      {mine && (
+                        <button className="chat-action-btn" title="Удалить"
+                          style={{ color: 'var(--danger)' }}
+                          onClick={() => deleteMessage(msg.id)}>✕</button>
+                      )}
+                    </div>
+
                     <div className="chat-msg-body">
                       {!mine && mode !== 'direct' && (
                         <span className="chat-sender-name">{msg.sender?.name}</span>
                       )}
                       <div className="chat-bubble">
-                        <span className="chat-bubble-text">{msg.text}</span>
-                        {msg.file_url && (
-                          <FileLink filePath={msg.file_url} />
+                        {/* Цитата */}
+                        {msg.reply_to_id && (
+                          <div className="chat-reply-ref">
+                            <span className="chat-reply-ref-sender">{msg.reply_to_sender}</span>
+                            <span className="chat-reply-ref-text">{msg.reply_to_text}</span>
+                          </div>
                         )}
+                        <span className="chat-bubble-text">{msg.text}</span>
+                        {msg.file_url && <FileLink filePath={msg.file_url} />}
                         <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
                       </div>
                     </div>
@@ -377,62 +425,46 @@ export function Chat({
         </div>
 
         {canWrite ? (
-          <div className="chat-input-row">
-            <input
-              ref={fileInputRef}
-              type="file"
-              style={{ display: 'none' }}
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-
-            <button
-              type="button"
-              className="chat-send-btn"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              📎
-            </button>
-            {file && (
-              <span
-                style={{
-                  fontSize: 12,
-                  color: 'var(--text-soft)',
-                  maxWidth: 150,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {file.name}
-              </span>
+          <>
+            {/* Черновик ответа */}
+            {replyTo && (
+              <div className="chat-reply-draft">
+                <div>
+                  <span className="chat-reply-draft-label">↩ {replyTo.sender?.name ?? 'Вы'}</span>
+                  <span className="chat-reply-draft-text">{replyTo.text}</span>
+                </div>
+                <button onClick={() => setReplyTo(null)}>×</button>
+              </div>
             )}
-            <textarea
-              ref={textareaRef}
-              className="chat-input"
-              value={text}
-              onChange={handleInput}
-              onKeyDown={onKey}
-              placeholder={
-                mode === 'announcement'
-                  ? 'Написать объявление всем ученикам…'
-                  : mode === 'group'
-                  ? 'Написать в общий чат…'
+            <div className="chat-input-row">
+              <input ref={fileInputRef} type="file" style={{ display: 'none' }}
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <button type="button" className="chat-send-btn" onClick={() => fileInputRef.current?.click()}>📎</button>
+              {file && (
+                <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {file.name}
+                </span>
+              )}
+              <textarea
+                ref={textareaRef}
+                className="chat-input"
+                value={text}
+                onChange={handleInput}
+                onKeyDown={onKey}
+                placeholder={
+                  mode === 'announcement' ? 'Написать объявление всем ученикам…'
+                  : mode === 'group'      ? 'Написать в общий чат…'
                   : `Написать ${activePeer?.name ?? ''}…`
-              }
-              rows={1}
-            />
-            <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
-              Отправить
-            </button>
-          </div>
+                }
+                rows={1}
+              />
+              <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
+                Отправить
+              </button>
+            </div>
+          </>
         ) : (
-          <div style={{
-            padding: '14px 20px',
-            borderTop: '1px solid var(--border)',
-            textAlign: 'center',
-            color: 'var(--text-faint)',
-            fontSize: 13,
-          }}>
+          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
             Только учитель может писать объявления
           </div>
         )}
@@ -445,89 +477,30 @@ function FileLink({ filePath }: { filePath: string }) {
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    async function load() {
-      const signed = await getSignedUrl(filePath)
-      setUrl(signed)
-    }
-
-    load()
+    getSignedUrl(filePath).then(setUrl)
   }, [filePath])
 
-  if (!url) {
-    return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
-  }
+  if (!url) return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
 
   const lower = filePath.toLowerCase()
+  const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(filePath)
 
-  const isImage =
-    lower.endsWith('.png') ||
-    lower.endsWith('.jpg') ||
-    lower.endsWith('.jpeg') ||
-    lower.endsWith('.webp') ||
-    lower.endsWith('.gif') ||
-    lower.endsWith('.bmp') ||
-    lower.endsWith('.svg')
-
-    let icon = '📄'
-
-    if (lower.endsWith('.pdf')) icon = '📕'
-    else if (lower.endsWith('.doc') || lower.endsWith('.docx')) icon = '📝'
-    else if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) icon = '📊'
-    else if (lower.endsWith('.zip') || lower.endsWith('.rar')) icon = '🗜️'
-    else if (isImage) icon = '🖼️'
+  let icon = '📄'
+  if (lower.endsWith('.pdf')) icon = '📕'
+  else if (lower.endsWith('.doc') || lower.endsWith('.docx')) icon = '📝'
+  else if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) icon = '📊'
+  else if (lower.endsWith('.zip') || lower.endsWith('.rar')) icon = '🗜️'
+  else if (isImage) icon = '🖼️'
 
   return (
-    <div
-      style={{
-        marginTop: 8,
-        padding: 10,
-        background: '#f3f4f6',
-        borderRadius: 12,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}
-    >
+    <div style={{ marginTop: 8, padding: 10, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {isImage && (
-        <img
-          src={url}
-          style={{
-            width: '100%',
-            borderRadius: 8,
-            maxHeight: 250,
-            objectFit: 'cover',
-          }}
-        />
+        <img src={url} alt="" style={{ width: '100%', borderRadius: 8, maxHeight: 250, objectFit: 'cover' }} />
       )}
-
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <span
-          style={{
-            fontSize: 13,
-            color: '#000',
-            fontWeight: 500,
-          }}
-        >
-          {icon} {filePath.split('/').pop()}
-        </span>
-
-        {/* ✅ ВАЖНО: это и есть скачивание */}
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            marginLeft: 'auto',
-            padding: '6px 10px',
-            borderRadius: 8,
-            border: '1px solid #ddd',
-            background: 'white',
-            cursor: 'pointer',
-            fontSize: 13,
-            textDecoration: 'none',
-            color: '#000',
-          }}
-        >
+        <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>{icon} {filePath.split('/').pop()}</span>
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          style={{ marginLeft: 'auto', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13, textDecoration: 'none', color: 'var(--text)' }}>
           Скачать
         </a>
       </div>

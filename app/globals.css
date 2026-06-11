@@ -1254,6 +1254,117 @@ option {
 .student-tab-content { padding-top: 4px; }
 .student-tab-content.chat-tab { padding-top: 0; margin: 0 -32px -48px; }
 
+/* ── Действия над сообщениями ──────────────────────────── */
+.chat-msg-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  align-self: center;
+}
+.chat-msg-row:hover .chat-msg-actions { display: flex; }
+.chat-msg-row.theirs .chat-msg-actions { order: 3; }
+
+.chat-action-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 7px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-soft);
+  transition: background .1s;
+  line-height: 1;
+}
+.chat-action-btn:hover { background: var(--surface-2); color: var(--text); }
+
+/* ── Цитата внутри бабла ───────────────────────────────── */
+.chat-reply-ref {
+  padding: 5px 10px;
+  border-left: 3px solid rgba(255,255,255,.55);
+  background: rgba(255,255,255,.12);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.chat-msg-row.theirs .chat-reply-ref {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.chat-reply-ref-sender {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 1px;
+  color: rgba(255,255,255,.85);
+}
+.chat-msg-row.theirs .chat-reply-ref-sender { color: var(--accent); }
+.chat-reply-ref-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+  opacity: .75;
+}
+
+/* ── Черновик ответа над полем ввода ───────────────────── */
+.chat-reply-draft {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13px;
+  gap: 8px;
+}
+.chat-reply-draft > div { min-width: 0; flex: 1; overflow: hidden; }
+.chat-reply-draft-label {
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.chat-reply-draft-text {
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-reply-draft button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0 2px;
+}
+.chat-reply-draft button:hover { color: var(--text); }
+
+/* ── Модалка пересылки ─────────────────────────────────── */
+.chat-forward-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.chat-forward-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
 .chat-sender-name {
   font-size: 11px;
   color: var(--text-faint);
