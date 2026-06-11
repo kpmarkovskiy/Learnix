@@ -88,6 +88,7 @@ export function Chat({
   const [replyTo, setReplyTo]         = useState<Message | null>(null)
   const [forwardMsg, setForwardMsg]   = useState<Message | null>(null)
   const [copiedId, setCopiedId]       = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [loading, setLoading]         = useState(false)
   const [currentUserName, setCurrentUserName] = useState('')
   const bottomRef   = useRef<HTMLDivElement>(null)
@@ -393,9 +394,19 @@ export function Chat({
                           onClick={() => setForwardMsg(msg)}>⇥</button>
                       )}
                       {mine && (
-                        <button className="chat-action-btn" title="Удалить"
-                          style={{ color: 'var(--danger)' }}
-                          onClick={() => deleteMessage(msg.id)}>✕</button>
+                        confirmDeleteId === msg.id ? (
+                          <>
+                            <span style={{ fontSize: 11, color: 'var(--text-soft)' }}>Удалить?</span>
+                            <button className="chat-action-btn" style={{ color: 'var(--danger)' }}
+                              onClick={() => { deleteMessage(msg.id); setConfirmDeleteId(null) }}>Да</button>
+                            <button className="chat-action-btn"
+                              onClick={() => setConfirmDeleteId(null)}>Нет</button>
+                          </>
+                        ) : (
+                          <button className="chat-action-btn" title="Удалить"
+                            style={{ color: 'var(--danger)' }}
+                            onClick={() => setConfirmDeleteId(msg.id)}>✕</button>
+                        )
                       )}
                     </div>
 
