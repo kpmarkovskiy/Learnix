@@ -1443,3 +1443,96 @@ option {
 *::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover) !important;
 }
+/* ── Chat: fixes & new features ── */
+
+/* 1. Аватар вплотную к пузырю — убираем лишний gap */
+.chat-msg-row {
+  gap: 4px !important;
+}
+.chat-msg-avatar {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+/* 2. PNG иконки в сайдбаре и хедере */
+.chat-peer-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.chat-header-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* 3. Кнопка микрофона */
+.chat-mic-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px !important;
+}
+
+/* 4. Запись: анимированная красная точка + таймер */
+.chat-recording-dot-anim {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f44336;
+  animation: pulse-rec 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse-rec {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+.chat-recording-timer {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f44336;
+  min-width: 38px;
+  flex-shrink: 0;
+}
+
+/* 5. Кнопка остановки записи */
+.chat-send-btn--stop {
+  display: flex !important;
+  align-items: center;
+  gap: 5px;
+  background: #f44336 !important;
+  color: #fff !important;
+  border: none !important;
+}
+.chat-send-btn--stop:hover {
+  background: #d32f2f !important;
+}
+
+/* ── PNG иконки: инвертировать чёрные иконки для тёмной темы ── */
+.chat-peer-icon {
+  width: 22px !important;
+  height: 22px !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
+  filter: invert(1) brightness(2) !important;
+}
+.chat-header-icon {
+  width: 20px !important;
+  height: 20px !important;
+  object-fit: contain !important;
+  margin-right: 6px !important;
+  vertical-align: middle !important;
+  filter: invert(1) brightness(2) !important;
+}
+.chat-mic-btn img {
+  filter: invert(1) brightness(2) !important;
+}
+/* Исправить: иконка объявления в сайдбаре не должна растягиваться */
+.chat-peer-btn {
+  overflow: hidden !important;
+}

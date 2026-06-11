@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
@@ -49,6 +49,11 @@ function groupByDay(messages: Message[]) {
   return grouped
 }
 
+// ── PNG иконки — файлы лежат в /public/icons/ ──
+const ICON_ANNOUNCEMENT = '/icons/free-icon-announcement-3405788.png'
+const ICON_GROUP        = '/icons/free-icon-group-4603826.png'
+const ICON_MIC          = '/icons/free-icon-microphone-black-shape-25682.png'
+
 function Avatar({ name, avatarUrl, size = 32 }: { name: string; avatarUrl?: string | null; size?: number }) {
   return (
     <div style={{
@@ -63,6 +68,224 @@ function Avatar({ name, avatarUrl, size = 32 }: { name: string; avatarUrl?: stri
         ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : name.charAt(0).toUpperCase()
       }
+    </div>
+  )
+}
+
+// ── Визуализация звуковой волны при записи ──
+function RecordingWaveform({ isRecording }: { isRecording: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const animFrameRef = useRef<number>(0)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  useEffect(() => {
+    if (!isRecording) return
+
+    let ctx: AudioContext | null = null
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      streamRef.current = stream
+      ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 128
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      const draw = () => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const canvasCtx = canvas.getContext('2d')
+        if (!canvasCtx) return
+        const bufferLength = analyser.frequencyBinCount
+        const dataArray = new Uint8Array(bufferLength)
+        analyser.getByteFrequencyData(dataArray)
+
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height)
+        const barWidth = (canvas.width / bufferLength) * 2
+        let x = 0
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = (dataArray[i] / 255) * canvas.height
+          const alpha = 0.5 + 0.5 * (dataArray[i] / 255)
+          canvasCtx.fillStyle = `rgba(107, 124, 255, ${alpha})`
+          canvasCtx.fillRect(x, (canvas.height - barHeight) / 2, barWidth - 1, barHeight)
+          x += barWidth
+        }
+        animFrameRef.current = requestAnimationFrame(draw)
+      }
+      draw()
+    }).catch(() => {})
+
+    return () => {
+      cancelAnimationFrame(animFrameRef.current)
+      ctx?.close()
+    }
+  }, [isRecording])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={200}
+      height={40}
+      style={{ flex: 1, borderRadius: 8, background: 'var(--surface-2)' }}
+    />
+  )
+}
+
+// ── Кастомный аудио плеер с волной ──
+function VoicePlayer({ url }: { url: string }) {
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null)
+  const animFrameRef = useRef<number>(0)
+
+  const drawWave = useCallback(() => {
+    const canvas = canvasRef.current
+    const analyser = analyserRef.current
+    if (!canvas || !analyser) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const bufferLength = analyser.frequencyBinCount
+    const dataArray = new Uint8Array(bufferLength)
+    analyser.getByteFrequencyData(dataArray)
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const barWidth = (canvas.width / bufferLength) * 2
+    let x = 0
+    for (let i = 0; i < bufferLength; i++) {
+      const barHeight = (dataArray[i] / 255) * canvas.height
+      const alpha = 0.4 + 0.6 * (dataArray[i] / 255)
+      ctx.fillStyle = `rgba(107, 124, 255, ${alpha})`
+      ctx.fillRect(x, (canvas.height - barHeight) / 2, barWidth - 1, barHeight)
+      x += barWidth
+    }
+    animFrameRef.current = requestAnimationFrame(drawWave)
+  }, [])
+
+  const drawIdle = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const bars = 32
+    const barW = canvas.width / bars
+    for (let i = 0; i < bars; i++) {
+      const h = 4 + Math.sin(i * 0.5) * 6 + Math.random() * 4
+      ctx.fillStyle = 'rgba(107, 124, 255, 0.35)'
+      ctx.fillRect(i * barW + 1, (canvas.height - h) / 2, barW - 2, h)
+    }
+  }, [])
+
+  useEffect(() => {
+    const audio = new Audio(url)
+    audioRef.current = audio
+    audio.onloadedmetadata = () => setDuration(audio.duration)
+    audio.ontimeupdate = () => setProgress(audio.currentTime / (audio.duration || 1))
+    audio.onended = () => {
+      setPlaying(false)
+      setProgress(0)
+      cancelAnimationFrame(animFrameRef.current)
+      drawIdle()
+    }
+    drawIdle()
+    return () => {
+      audio.pause()
+      cancelAnimationFrame(animFrameRef.current)
+      audioCtxRef.current?.close()
+    }
+  }, [url, drawIdle])
+
+  function togglePlay() {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) {
+      audio.pause()
+      cancelAnimationFrame(animFrameRef.current)
+      setPlaying(false)
+      drawIdle()
+    } else {
+      if (!audioCtxRef.current) {
+        const actx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+        audioCtxRef.current = actx
+        const analyser = actx.createAnalyser()
+        analyser.fftSize = 64
+        analyserRef.current = analyser
+        const source = actx.createMediaElementSource(audio)
+        sourceRef.current = source
+        source.connect(analyser)
+        analyser.connect(actx.destination)
+      }
+      audio.play()
+      setPlaying(true)
+      drawWave()
+    }
+  }
+
+  const fmtSec = (s: number) => isNaN(s) ? '0:00' : `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, minWidth: 220 }}>
+      {/* Кнопка Play/Pause — треугольник */}
+      <button
+        onClick={togglePlay}
+        style={{
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'var(--accent)', border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', flexShrink: 0,
+          boxShadow: '0 2px 8px rgba(107,124,255,0.4)',
+        }}
+      >
+        {playing
+          ? (
+            /* Пауза */
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="white">
+              <rect x="2" y="1" width="4" height="12" rx="1"/>
+              <rect x="8" y="1" width="4" height="12" rx="1"/>
+            </svg>
+          )
+          : (
+            /* Треугольник Play */
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="white">
+              <polygon points="3,1 13,7 3,13"/>
+            </svg>
+          )
+        }
+      </button>
+
+      {/* Волна */}
+      <div style={{ flex: 1, position: 'relative', height: 36 }}>
+        <canvas
+          ref={canvasRef}
+          width={180}
+          height={36}
+          style={{ width: '100%', height: '100%', borderRadius: 6, background: 'var(--surface-2)' }}
+        />
+        {/* Прогресс-оверлей */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, bottom: 0,
+          width: `${progress * 100}%`,
+          background: 'rgba(107,124,255,0.15)',
+          borderRadius: 6,
+          pointerEvents: 'none',
+          transition: 'width 0.1s linear',
+        }} />
+      </div>
+
+      {/* Время */}
+      <span style={{ fontSize: 11, color: 'var(--text-faint)', flexShrink: 0 }}>
+        {playing
+          ? fmtSec((audioRef.current?.currentTime ?? 0))
+          : fmtSec(duration)
+        }
+      </span>
     </div>
   )
 }
@@ -373,8 +596,8 @@ export function Chat({
 
   const grouped   = groupByDay(messages)
   const chatTitle =
-    mode === 'announcement' ? '📢 Объявления'
-    : mode === 'group'      ? '👥 Общий чат'
+    mode === 'announcement' ? 'Объявления'
+    : mode === 'group'      ? 'Общий чат'
     : activePeer            ? activePeer.name
     : 'Выберите собеседника'
 
@@ -431,11 +654,13 @@ export function Chat({
       <aside className="chat-peers">
         <p className="chat-peers-label">Чаты</p>
         <button className={`chat-peer-btn ${mode === 'announcement' ? 'active' : ''}`} onClick={() => setMode('announcement')}>
-          <span className="chat-peer-av">📢</span>
+          {/* PNG иконка объявления — замени src на путь к своему PNG */}
+          <img src={ICON_ANNOUNCEMENT} alt="Объявления" className="chat-peer-icon" />
           <span className="chat-peer-name">Объявления</span>
         </button>
         <button className={`chat-peer-btn ${mode === 'group' ? 'active' : ''}`} onClick={() => setMode('group')}>
-          <span className="chat-peer-av">👥</span>
+          {/* PNG иконка группы — замени src на путь к своему PNG */}
+          <img src={ICON_GROUP} alt="Общий чат" className="chat-peer-icon" />
           <span className="chat-peer-name">Общий чат</span>
         </button>
         {peers.length > 0 && (
@@ -458,6 +683,8 @@ export function Chat({
       {/* ── Основная область ── */}
       <div className="chat-main">
         <header className="chat-header">
+          {mode === 'announcement' && <img src={ICON_ANNOUNCEMENT} alt="" className="chat-header-icon" />}
+          {mode === 'group' && <img src={ICON_GROUP} alt="" className="chat-header-icon" />}
           <span className="chat-header-name">{chatTitle}</span>
           {mode === 'announcement' && role === 'student' && (
             <span style={{ fontSize: 12, color: 'var(--text-faint)', marginLeft: 8 }}>только чтение</span>
@@ -478,8 +705,12 @@ export function Chat({
                 const mine = msg.sender_id === currentUserId
                 return (
                   <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`}>
-                    {!mine && <Avatar name={msg.sender?.name ?? '?'} avatarUrl={msg.sender?.avatar_url} size={32} />}
-                    {mine && <Avatar name={currentUserName || '?'} avatarUrl={currentUserAvatar} size={32} />}
+                    {/* Аватар вплотную к пузырю — убираем лишний отступ */}
+                    {!mine && (
+                      <div className="chat-msg-avatar">
+                        <Avatar name={msg.sender?.name ?? '?'} avatarUrl={msg.sender?.avatar_url} size={32} />
+                      </div>
+                    )}
 
                     {/* Панель действий */}
                     <div className="chat-msg-actions">
@@ -520,6 +751,12 @@ export function Chat({
                         <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
                       </div>
                     </div>
+
+                    {mine && (
+                      <div className="chat-msg-avatar">
+                        <Avatar name={currentUserName || '?'} avatarUrl={currentUserAvatar} size={32} />
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -543,42 +780,60 @@ export function Chat({
             <div className="chat-input-row">
               <input ref={fileInputRef} type="file" style={{ display: 'none' }}
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              {!recording && (
-                <button type="button" className="chat-send-btn" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">📎</button>
-              )}
-              {!recording && file && (
-                <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {file.name}
-                </span>
-              )}
-              {recording && (
-                <span className="chat-recording-indicator">
-                  <span className="chat-recording-dot" />
-                  {fmtRecordTime(recordingTime)}
-                </span>
-              )}
-              <textarea
-                ref={textareaRef}
-                className="chat-input"
-                value={text}
-                onChange={handleInput}
-                onKeyDown={onKey}
-                placeholder={
-                  mode === 'announcement' ? 'Написать объявление всем ученикам…'
-                  : mode === 'group'      ? 'Написать в общий чат…'
-                  : `Написать ${activePeer?.name ?? ''}…`
-                }
-                rows={1}
-              />
-              {!recording ? (
-                <button type="button" className="chat-send-btn" onClick={startRecording} title="Голосовое сообщение">🎤</button>
+
+              {/* Режим записи: волна вместо textarea */}
+              {recording ? (
+                <>
+                  <span className="chat-recording-dot-anim" />
+                  <span className="chat-recording-timer">{fmtRecordTime(recordingTime)}</span>
+                  <RecordingWaveform isRecording={recording} />
+                  <button
+                    type="button"
+                    className="chat-send-btn chat-send-btn--stop"
+                    onClick={stopRecording}
+                    title="Остановить и отправить"
+                  >
+                    {/* Квадрат «стоп» */}
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                      <rect x="2" y="2" width="10" height="10" rx="1"/>
+                    </svg>
+                    Отправить
+                  </button>
+                </>
               ) : (
-                <button type="button" className="chat-send-btn chat-send-btn--stop" onClick={stopRecording} title="Остановить и отправить">⏹ Отправить</button>
-              )}
-              {!recording && (
-                <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
-                  Отправить
-                </button>
+                <>
+                  <button type="button" className="chat-send-btn" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">📎</button>
+                  {file && (
+                    <span style={{ fontSize: 12, color: 'var(--text-soft)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {file.name}
+                    </span>
+                  )}
+                  <textarea
+                    ref={textareaRef}
+                    className="chat-input"
+                    value={text}
+                    onChange={handleInput}
+                    onKeyDown={onKey}
+                    placeholder={
+                      mode === 'announcement' ? 'Написать объявление всем ученикам…'
+                      : mode === 'group'      ? 'Написать в общий чат…'
+                      : `Написать ${activePeer?.name ?? ''}…`
+                    }
+                    rows={1}
+                  />
+                  {/* Кнопка микрофона — PNG иконка */}
+                  <button
+                    type="button"
+                    className="chat-send-btn chat-mic-btn"
+                    onClick={startRecording}
+                    title="Голосовое сообщение"
+                  >
+                    <img src={ICON_MIC} alt="Микрофон" style={{ width: 18, height: 18 }} />
+                  </button>
+                  <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn">
+                    Отправить
+                  </button>
+                </>
               )}
             </div>
           </>
@@ -603,11 +858,7 @@ function FileLink({ filePath }: { filePath: string }) {
 
   const isAudio = /\.(webm|ogg|mp3|m4a|wav|mp4)$/i.test(filePath) && filePath.startsWith('voice_')
   if (isAudio) {
-    return (
-      <div style={{ marginTop: 6 }}>
-        <audio controls src={url} style={{ width: '100%', maxWidth: 280, height: 36 }} />
-      </div>
-    )
+    return <VoicePlayer url={url} />
   }
 
   const lower = filePath.toLowerCase()
