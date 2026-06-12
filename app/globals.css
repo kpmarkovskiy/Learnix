@@ -1062,13 +1062,17 @@ option {
 .chat-peer-btn:hover { background: var(--surface-2); }
 .chat-peer-btn.active { background: var(--accent-soft); border-color: var(--accent); }
 .chat-peer-av {
-  width: 34px; height: 34px; flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--text);
   font-size: 14px;
   font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .chat-peer-av.sm { width: 28px; height: 28px; flex: 0 0 28px; font-size: 12px; }
 .chat-peer-name { font-size: 13px; font-weight: 500; }
@@ -1486,17 +1490,24 @@ option {
 
 /* 2. PNG иконки в сайдбаре и хедере */
 .chat-peer-icon {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  flex-shrink: 0;
+  width: 22px !important;
+  height: 22px !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
 }
+
 .chat-header-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  margin-right: 6px;
-  vertical-align: middle;
+  width: 20px !important;
+  height: 20px !important;
+  object-fit: contain !important;
+  margin-right: 6px !important;
+  vertical-align: middle !important;
+}
+
+[data-theme="dark"] .chat-peer-icon,
+[data-theme="dark"] .chat-header-icon,
+[data-theme="dark"] .chat-mic-btn img {
+  filter: invert(1) brightness(2);
 }
 
 /* 3. Кнопка микрофона */
@@ -1548,7 +1559,6 @@ option {
   height: 22px !important;
   object-fit: contain !important;
   flex-shrink: 0 !important;
-  filter: invert(1) brightness(2) !important;
 }
 .chat-header-icon {
   width: 20px !important;
@@ -1556,10 +1566,8 @@ option {
   object-fit: contain !important;
   margin-right: 6px !important;
   vertical-align: middle !important;
-  filter: invert(1) brightness(2) !important;
 }
 .chat-mic-btn img {
-  filter: invert(1) brightness(2) !important;
 }
 /* Исправить: иконка объявления в сайдбаре не должна растягиваться */
 .chat-peer-btn {
