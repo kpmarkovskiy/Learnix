@@ -1565,3 +1565,76 @@ option {
 .chat-peer-btn {
   overflow: hidden !important;
 }
+/* ── Шаг 2: Редактирование сообщений ── */
+.chat-bubble-edited {
+  font-size: 11px;
+  opacity: 0.7;
+  font-style: italic;
+  white-space: nowrap;
+  line-height: 1;
+}
+.chat-edit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.chat-edit-input {
+  width: 100%;
+  min-height: 36px;
+  max-height: 200px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.15);
+  color: inherit;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.chat-msg-row.theirs .chat-edit-input {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--text);
+}
+.chat-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+.chat-edit-cancel,
+.chat-edit-save {
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .15s;
+}
+.chat-edit-cancel {
+  border: 1.5px solid rgba(255,255,255,0.5);
+  background: transparent;
+  color: #fff;
+}
+.chat-edit-cancel:hover { opacity: 0.7; }
+.chat-edit-save {
+  border: none;
+  background: #fff;
+  color: var(--accent);
+}
+.chat-edit-save:hover { opacity: 0.85; }
+/* Для чужих пузырьков (theirs — серый фон) */
+.chat-msg-row.theirs .chat-edit-cancel {
+  border-color: var(--border);
+  color: var(--text-soft);
+}
+.chat-msg-row.theirs .chat-edit-save {
+  background: var(--accent);
+  color: #fff;
+}

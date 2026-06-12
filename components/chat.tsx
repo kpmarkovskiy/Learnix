@@ -25,6 +25,8 @@ type Message = {
   reply_to_id: string | null
   reply_to_text: string | null
   reply_to_sender: string | null
+  is_edited: boolean
+  is_deleted: boolean
 }
 
 type Peer = { id: string; name: string; avatar_url?: string | null }
@@ -314,6 +316,9 @@ export function Chat({
   const [loading, setLoading]         = useState(false)
   const [sending, setSending]         = useState(false)
   const [currentUserName, setCurrentUserName] = useState('')
+  const [editingId, setEditingId]     = useState<string | null>(null)
+  const [editText, setEditText]       = useState('')
+  const editInputRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef        = useRef<HTMLDivElement>(null)
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const fileInputRef     = useRef<HTMLInputElement>(null)
@@ -330,7 +335,7 @@ export function Chat({
     setLoading(true)
     let query = supabase
       .from('messages')
-      .select('id, sender_id, receiver_id, text, file_url, reply_to_id, reply_to_text, reply_to_sender, created_at, chat_type, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
+      .select('id, sender_id, receiver_id, text, file_url, reply_to_id, reply_to_text, reply_to_sender, created_at, chat_type, is_edited, is_deleted, sender:profiles!messages_sender_id_fkey(name, avatar_url)')
       .order('created_at')
 
     if (mode === 'announcement') {
@@ -412,6 +417,10 @@ export function Chat({
         const deleted = payload.old as { id: string }
         setMessages(prev => prev.filter(m => m.id !== deleted.id))
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+        const updated = payload.new as Message
+        setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, text: updated.text, is_edited: updated.is_edited, is_deleted: updated.is_deleted } : m))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -430,6 +439,34 @@ export function Chat({
   async function deleteMessage(id: string) {
     const { error } = await supabase.from('messages').delete().eq('id', id).eq('sender_id', currentUserId)
     if (!error) setMessages(prev => prev.filter(m => m.id !== id))
+  }
+
+  function startEdit(msg: Message) {
+    setEditingId(msg.id)
+    setEditText(msg.text ?? '')
+    setTimeout(() => {
+      editInputRef.current?.focus()
+      editInputRef.current?.select()
+    }, 50)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditText('')
+  }
+
+  async function saveEdit(id: string) {
+    const trimmed = editText.trim()
+    if (!trimmed) return
+    const { error } = await supabase
+      .from('messages')
+      .update({ text: trimmed, is_edited: true, edited_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('sender_id', currentUserId)
+    if (!error) {
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, text: trimmed, is_edited: true } : m))
+      cancelEdit()
+    }
   }
 
   const fmtRecordTime = (sec: number) =>
@@ -732,6 +769,10 @@ export function Chat({
                         <button className="chat-action-btn" title="Переслать"
                           onClick={() => setForwardMsg(msg)}>⇥</button>
                       )}
+                      {mine && msg.text && (
+                        <button className="chat-action-btn" title="Редактировать"
+                          onClick={() => startEdit(msg)}>✎</button>
+                      )}
                       {mine && (
                         <button className="chat-action-btn" title="Удалить"
                           style={{ color: 'var(--danger)' }}
@@ -751,9 +792,33 @@ export function Chat({
                             <span className="chat-reply-ref-text">{msg.reply_to_text ?? '🎤 Голосовое сообщение'}</span>
                           </div>
                         )}
-                        {msg.text && <span className="chat-bubble-text">{msg.text}</span>}
-                        {msg.file_url && <FileLink filePath={msg.file_url} />}
+                        {editingId === msg.id ? (
+                          <div className="chat-edit-wrap">
+                            <textarea
+                              ref={editInputRef}
+                              className="chat-edit-input"
+                              value={editText}
+                              onChange={e => { setEditText(e.target.value); e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px" }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id) }
+                                if (e.key === 'Escape') cancelEdit()
+                              }}
+                              rows={2}
+                            />
+                            <div className="chat-edit-actions">
+                              <button className="chat-edit-cancel" onClick={cancelEdit}>Отмена</button>
+                              {" "}
+                              <button className="chat-edit-save" onClick={() => saveEdit(msg.id)}>Сохранить</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {msg.text && <span className="chat-bubble-text">{msg.text}</span>}
+                            {msg.file_url && <FileLink filePath={msg.file_url} />}
+                          </>
+                        )}
                         <div className="chat-bubble-footer">
+                          {msg.is_edited && <span className="chat-bubble-edited">изменено</span>}
                           <span className="chat-bubble-time">{fmtTime(msg.created_at)}</span>
                         </div>
                       </div>
