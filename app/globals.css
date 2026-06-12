@@ -1663,3 +1663,22 @@ option {
 .chat-preview-discard:hover { background: var(--surface-2); }
 /* Нативный audio в тёмной теме */
 audio { accent-color: var(--accent); }
+
+/* ── Шаг 4: Скролл к сообщению + подсветка ── */
+@keyframes msg-highlight {
+  0%   { background: rgba(107, 124, 255, 0.28); }
+  70%  { background: rgba(107, 124, 255, 0.18); }
+  100% { background: transparent; }
+}
+.chat-msg-highlight .chat-bubble {
+  animation: msg-highlight 2.5s ease-out forwards;
+  border-radius: 18px;
+}
+/* Цитата кликабельна */
+.chat-reply-ref--clickable {
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.chat-reply-ref--clickable:hover {
+  opacity: 0.8;
+}

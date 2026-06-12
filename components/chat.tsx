@@ -330,6 +330,8 @@ export function Chat({
   const cancelledRecRef = useRef(false)
   const stoppingRef = useRef(false)
   const sendingVoiceRef = useRef(false)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef        = useRef<HTMLDivElement>(null)
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
@@ -465,6 +467,14 @@ export function Chat({
   function cancelEdit() {
     setEditingId(null)
     setEditText('')
+  }
+
+  function scrollToMessage(id: string) {
+    const el = document.getElementById(`msg-${id}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightId(id)
+    setTimeout(() => setHighlightId(null), 2500)
   }
 
   async function saveEdit(id: string) {
@@ -754,7 +764,7 @@ export function Chat({
           )}
         </header>
 
-        <div className="chat-messages">
+        <div className="chat-messages" ref={messagesRef}>
           {loading && <p className="chat-loading">Загрузка…</p>}
           {!loading && messages.length === 0 && (
             <p className="chat-no-msgs">
@@ -767,7 +777,7 @@ export function Chat({
               {msgs.map((msg) => {
                 const mine = msg.sender_id === currentUserId
                 return (
-                  <div key={msg.id} className={`chat-msg-row ${mine ? 'mine' : 'theirs'}`}>
+                  <div key={msg.id} id={`msg-${msg.id}`} className={`chat-msg-row ${mine ? 'mine' : 'theirs'} ${highlightId === msg.id ? 'chat-msg-highlight' : ''}`}>
                     {/* Аватар вплотную к пузырю — убираем лишний отступ */}
                     {!mine && (
                       <div className="chat-msg-avatar">
@@ -808,7 +818,7 @@ export function Chat({
                       <div className="chat-bubble">
                         {/* Цитата */}
                         {msg.reply_to_id && (
-                          <div className="chat-reply-ref">
+                          <div className="chat-reply-ref chat-reply-ref--clickable" onClick={() => scrollToMessage(msg.reply_to_id!)}>
                             <span className="chat-reply-ref-sender">{msg.reply_to_sender}</span>
                             <span className="chat-reply-ref-text">{msg.reply_to_text ?? '🎤 Голосовое сообщение'}</span>
                           </div>
