@@ -214,7 +214,7 @@ const path = `teacher/${user.id}/${Date.now()}.${ext}`
       {reviewing && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 28, width: '100%', maxWidth: 600 }}>
+            <div style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 28, width: '100%', maxWidth: 600 }}>
             <h3 style={{ marginBottom: 4 }}>Проверка работы</h3>
 <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 16 }}>
   {reviewing.studentName} · {reviewing.hwTitle}
@@ -274,12 +274,12 @@ const path = `teacher/${user.id}/${Date.now()}.${ext}`
                 ↩ На доработку
               </button>
               <button
-                className="lesson-cancel"
-                onClick={() => { setReviewing(null); setReviewComment('') }}
-                disabled={reviewLoading}
-              >
-                ×
-              </button>
+  onClick={() => { setReviewing(null); setReviewComment('') }}
+  disabled={reviewLoading}
+  style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', fontSize: 24, lineHeight: 1, padding: 4 }}
+>
+  ×
+</button>
             </div>
           </div>
         </div>
