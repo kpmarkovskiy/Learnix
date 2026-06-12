@@ -136,6 +136,7 @@ function VoicePlayer({ url, getFreshUrl }: { url: string; getFreshUrl: () => Pro
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [speed, setSpeed] = useState(1)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
@@ -279,11 +280,16 @@ function VoicePlayer({ url, getFreshUrl }: { url: string; getFreshUrl: () => Pro
 
       {/* Время */}
       <span style={{ fontSize: 11, color: 'var(--text-faint)', flexShrink: 0 }}>
-        {playing
-          ? fmtSec((audioRef.current?.currentTime ?? 0))
-          : fmtSec(duration)
-        }
+        {playing ? fmtSec((audioRef.current?.currentTime ?? 0)) : fmtSec(duration)}
       </span>
+      <button
+        onClick={() => {
+          const next = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1
+          setSpeed(next)
+          if (audioRef.current) audioRef.current.playbackRate = next
+        }}
+        style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 5px', cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}
+      >{speed}x</button>
     </div>
   )
 }
@@ -318,6 +324,12 @@ export function Chat({
   const [currentUserName, setCurrentUserName] = useState('')
   const [editingId, setEditingId]     = useState<string | null>(null)
   const [editText, setEditText]       = useState('')
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null)
+  const [previewUrl, setPreviewUrl]   = useState<string | null>(null)
+  const [previewMimeType, setPreviewMimeType] = useState('')
+  const cancelledRecRef = useRef(false)
+  const stoppingRef = useRef(false)
+  const sendingVoiceRef = useRef(false)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef        = useRef<HTMLDivElement>(null)
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
@@ -484,55 +496,21 @@ export function Chat({
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-
-        if (audioChunksRef.current.length === 0) {
-          alert('Запись не удалась — нет данных')
+        if (cancelledRecRef.current) {
+          cancelledRecRef.current = false
+          stoppingRef.current = false
+          audioChunksRef.current = []
           return
         }
-
+        if (audioChunksRef.current.length === 0) return
         const mType = mr.mimeType || 'audio/webm'
         const blob  = new Blob(audioChunksRef.current, { type: mType })
-        const ext   = mType.includes('ogg') ? 'ogg' : mType.includes('mp4') ? 'mp4' : 'webm'
-        const fileName = `voice_${Date.now()}.${ext}`
-
-        if (blob.size === 0) {
-          alert('Запись пустая (0 байт). Проверьте доступ к микрофону.')
-          return
-        }
-
-        const { error: uploadErr } = await supabase.storage
-          .from('chat-files')
-          .upload(fileName, blob, { contentType: mType })
-        if (uploadErr) {
-          alert(`Ошибка загрузки голосового: ${uploadErr.message}`)
-          return
-        }
-
-        const payload: Record<string, unknown> = {
-          sender_id: currentUserId,
-          text: null,
-          file_url: fileName,
-          chat_type: mode,
-          receiver_id: mode === 'direct' && activePeer
-            ? activePeer.id
-            : mode === 'group' ? (role === 'teacher' ? currentUserId : (teacherId ?? null))
-            : null,
-          reply_to_id: null, reply_to_text: null, reply_to_sender: null,
-        }
-        const { error: insertErr } = await supabase.from('messages').insert(payload)
-        if (insertErr) {
-          alert(`Ошибка отправки: ${insertErr.message}`)
-          return
-        }
-
-        const myName = currentUserName || 'пользователь'
-        if (mode === 'announcement' && role === 'teacher') {
-          await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `🎤 Голосовое от ${myName}` })))
-        } else if (mode === 'group') {
-          await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `🎤 Голосовое в общем чате от ${myName}` })))
-        } else if (mode === 'direct' && activePeer) {
-          await supabase.rpc('create_notification', { p_user_id: activePeer.id, p_text: `🎤 Голосовое от ${myName}` })
-        }
+        if (blob.size === 0) return
+        // Показать превью вместо отправки
+        const blobUrl = URL.createObjectURL(blob)
+        setPreviewBlob(blob)
+        setPreviewUrl(blobUrl)
+        setPreviewMimeType(mType)
       }
 
       mr.start()
@@ -546,11 +524,54 @@ export function Chat({
     }
   }
 
-  function stopRecording() {
+  function stopRecording(cancel = false) {
+    if (stoppingRef.current) return
+    stoppingRef.current = true
+    cancelledRecRef.current = cancel
     mediaRecorderRef.current?.stop()
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
     setRecording(false)
     setRecordingStream(null)
+    if (cancel) { audioChunksRef.current = [] }
+  }
+
+  async function sendVoicePreview() {
+    if (!previewBlob || sendingVoiceRef.current) return
+    sendingVoiceRef.current = true
+    const mType = previewMimeType || 'audio/webm'
+    const ext = mType.includes('ogg') ? 'ogg' : mType.includes('mp4') ? 'mp4' : 'webm'
+    const fileName = `voice_${Date.now()}.${ext}`
+    const { error: uploadErr } = await supabase.storage
+      .from('chat-files')
+      .upload(fileName, previewBlob, { contentType: mType })
+    if (uploadErr) { alert(`Ошибка загрузки: ${uploadErr.message}`); return }
+    const payload: Record<string, unknown> = {
+      sender_id: currentUserId, text: null, file_url: fileName,
+      chat_type: mode,
+      receiver_id: mode === 'direct' && activePeer ? activePeer.id
+        : mode === 'group' ? (role === 'teacher' ? currentUserId : (teacherId ?? null)) : null,
+      reply_to_id: null, reply_to_text: null, reply_to_sender: null,
+    }
+    const { error: insertErr } = await supabase.from('messages').insert(payload)
+    if (insertErr) { alert(`Ошибка отправки: ${insertErr.message}`); return }
+    const myName = currentUserName || 'пользователь'
+    if (mode === 'announcement' && role === 'teacher') {
+      await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `🎤 Голосовое от ${myName}` })))
+    } else if (mode === 'group') {
+      await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `🎤 Голосовое в общем чате от ${myName}` })))
+    } else if (mode === 'direct' && activePeer) {
+      await supabase.rpc('create_notification', { p_user_id: activePeer.id, p_text: `🎤 Голосовое от ${myName}` })
+    }
+    discardVoicePreview()
+  }
+
+  function discardVoicePreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewBlob(null)
+    setPreviewUrl(null)
+    setPreviewMimeType('')
+    stoppingRef.current = false
+    sendingVoiceRef.current = false
   }
 
   async function copyMessage(msgId: string, t: string) {
@@ -854,22 +875,34 @@ export function Chat({
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
 
               {/* Режим записи: волна вместо textarea */}
-              {recording ? (
+              {previewUrl ? (
+                /* ── Предпрослушивание ── */
+                <div className="chat-preview-row">
+                  <audio src={previewUrl} controls style={{ flex: 1, height: 36, minWidth: 0 }} />
+                  <button className="chat-preview-discard" onClick={discardVoicePreview} title="Удалить">✕</button>
+                  <button className="chat-send-btn" onClick={sendVoicePreview} title="Отправить">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                </div>
+              ) : recording ? (
                 <>
+                  <button type="button" className="chat-action-btn" style={{ color: 'var(--text-soft)' }} onClick={() => stopRecording(true)} title="Отменить запись">✕</button>
                   <span className="chat-recording-dot-anim" />
                   <span className="chat-recording-timer">{fmtRecordTime(recordingTime)}</span>
                   <RecordingWaveform stream={recordingStream} />
                   <button
                     type="button"
                     className="chat-send-btn chat-send-btn--stop"
-                    onClick={stopRecording}
-                    title="Остановить и отправить"
+                    onClick={() => stopRecording(false)}
+                    title="Остановить и прослушать"
                   >
-                    {/* Квадрат «стоп» */}
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                       <rect x="2" y="2" width="10" height="10" rx="1"/>
                     </svg>
-                    Отправить
+                    Готово
                   </button>
                 </>
               ) : (
