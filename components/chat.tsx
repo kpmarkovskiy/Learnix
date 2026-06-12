@@ -73,25 +73,19 @@ function Avatar({ name, avatarUrl, size = 32 }: { name: string; avatarUrl?: stri
 }
 
 // ── Визуализация звуковой волны при записи ──
-function RecordingWaveform({ isRecording }: { isRecording: boolean }) {
+function RecordingWaveform({ stream }: { stream: MediaStream | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
-    if (!isRecording) return
-
+    if (!stream) return
     let ctx: AudioContext | null = null
-
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-      streamRef.current = stream
+    try {
       ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
       const source = ctx.createMediaStreamSource(stream)
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 128
       source.connect(analyser)
-      analyserRef.current = analyser
 
       const draw = () => {
         const canvas = canvasRef.current
@@ -101,7 +95,6 @@ function RecordingWaveform({ isRecording }: { isRecording: boolean }) {
         const bufferLength = analyser.frequencyBinCount
         const dataArray = new Uint8Array(bufferLength)
         analyser.getByteFrequencyData(dataArray)
-
         canvasCtx.clearRect(0, 0, canvas.width, canvas.height)
         const barWidth = (canvas.width / bufferLength) * 2
         let x = 0
@@ -115,13 +108,13 @@ function RecordingWaveform({ isRecording }: { isRecording: boolean }) {
         animFrameRef.current = requestAnimationFrame(draw)
       }
       draw()
-    }).catch(() => {})
+    } catch { /* ignore */ }
 
     return () => {
       cancelAnimationFrame(animFrameRef.current)
       ctx?.close()
     }
-  }, [isRecording])
+  }, [stream])
 
   return (
     <canvas
@@ -137,7 +130,7 @@ function RecordingWaveform({ isRecording }: { isRecording: boolean }) {
 const activePlayer: { stop: (() => void) | null } = { stop: null }
 
 // ── Кастомный аудио плеер с волной ──
-function VoicePlayer({ url }: { url: string }) {
+function VoicePlayer({ url, getFreshUrl }: { url: string; getFreshUrl: () => Promise<string | null> }) {
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -206,8 +199,13 @@ function VoicePlayer({ url }: { url: string }) {
       setPlaying(false)
       drawIdle()
     } else {
-      // Остановить предыдущий плеер если играет
+      // Обновить URL если истёк
       if (activePlayer.stop) activePlayer.stop()
+      const freshUrl = await getFreshUrl()
+      if (freshUrl && audio.src !== freshUrl) {
+        audio.src = freshUrl
+        audio.load()
+      }
       activePlayer.stop = () => {
         audio.pause()
         cancelAnimationFrame(animFrameRef.current)
@@ -312,7 +310,9 @@ export function Chat({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [recording, setRecording]     = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null)
   const [loading, setLoading]         = useState(false)
+  const [sending, setSending]         = useState(false)
   const [currentUserName, setCurrentUserName] = useState('')
   const bottomRef        = useRef<HTMLDivElement>(null)
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
@@ -458,8 +458,6 @@ export function Chat({
         const ext   = mType.includes('ogg') ? 'ogg' : mType.includes('mp4') ? 'mp4' : 'webm'
         const fileName = `voice_${Date.now()}.${ext}`
 
-        console.log('[Voice] mimeType:', mType, '| chunks:', audioChunksRef.current.length, '| blobSize:', blob.size, '| fileName:', fileName)
-
         if (blob.size === 0) {
           alert('Запись пустая (0 байт). Проверьте доступ к микрофону.')
           return
@@ -470,10 +468,8 @@ export function Chat({
           .upload(fileName, blob, { contentType: mType })
         if (uploadErr) {
           alert(`Ошибка загрузки голосового: ${uploadErr.message}`)
-          console.error('[Voice] upload error:', uploadErr)
           return
         }
-        console.log('[Voice] uploaded OK:', fileName)
 
         const payload: Record<string, unknown> = {
           sender_id: currentUserId,
@@ -494,9 +490,9 @@ export function Chat({
 
         const myName = currentUserName || 'пользователь'
         if (mode === 'announcement' && role === 'teacher') {
-          for (const peer of peers) await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `🎤 Голосовое от ${myName}` })
+          await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `🎤 Голосовое от ${myName}` })))
         } else if (mode === 'group') {
-          for (const peer of peers) await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `🎤 Голосовое в общем чате от ${myName}` })
+          await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `🎤 Голосовое в общем чате от ${myName}` })))
         } else if (mode === 'direct' && activePeer) {
           await supabase.rpc('create_notification', { p_user_id: activePeer.id, p_text: `🎤 Голосовое от ${myName}` })
         }
@@ -505,6 +501,7 @@ export function Chat({
       mr.start()
       mediaRecorderRef.current = mr
       setRecording(true)
+      setRecordingStream(stream)
       setRecordingTime(0)
       recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
     } catch {
@@ -516,6 +513,7 @@ export function Chat({
     mediaRecorderRef.current?.stop()
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
     setRecording(false)
+    setRecordingStream(null)
   }
 
   async function copyMessage(msgId: string, t: string) {
@@ -544,7 +542,8 @@ export function Chat({
   }
 
   async function send() {
-    if ((!text.trim() && !file) || !canWrite) return
+    if ((!text.trim() && !file) || !canWrite || sending) return
+    setSending(true)
     let uploadedFileUrl: string | null = null
 
     if (file) {
@@ -567,7 +566,7 @@ export function Chat({
       chat_type:       mode,
       receiver_id:     null,
       reply_to_id:     replyTo?.id     ?? null,
-      reply_to_text:   replyTo?.text   ?? null,
+      reply_to_text:   replyTo?.text ?? (replyTo?.file_url ? '🎤 Голосовое сообщение' : null),
       reply_to_sender: replyTo?.sender?.name ?? null,
     }
 
@@ -581,16 +580,13 @@ export function Chat({
 
     const myName = currentUserName || 'пользователь'
     if (mode === 'announcement' && role === 'teacher') {
-      for (const peer of peers) {
-        await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `📢 Объявление от ${myName}` })
-      }
+      await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `📢 Объявление от ${myName}` })))
     } else if (mode === 'group') {
-      for (const peer of peers) {
-        await supabase.rpc('create_notification', { p_user_id: peer.id, p_text: `💬 Сообщение в общем чате от ${myName}` })
-      }
+      await Promise.all(peers.map(p => supabase.rpc('create_notification', { p_user_id: p.id, p_text: `💬 Сообщение в общем чате от ${myName}` })))
     } else if (mode === 'direct' && activePeer) {
       await supabase.rpc('create_notification', { p_user_id: activePeer.id, p_text: `Новое сообщение от ${myName}` })
     }
+    setSending(false)
   }
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -752,7 +748,7 @@ export function Chat({
                         {msg.reply_to_id && (
                           <div className="chat-reply-ref">
                             <span className="chat-reply-ref-sender">{msg.reply_to_sender}</span>
-                            <span className="chat-reply-ref-text">{msg.reply_to_text}</span>
+                            <span className="chat-reply-ref-text">{msg.reply_to_text ?? '🎤 Голосовое сообщение'}</span>
                           </div>
                         )}
                         {msg.text && <span className="chat-bubble-text">{msg.text}</span>}
@@ -783,7 +779,7 @@ export function Chat({
               <div className="chat-reply-draft">
                 <div>
                   <span className="chat-reply-draft-label">↩ {replyTo.sender?.name ?? 'Вы'}</span>
-                  <span className="chat-reply-draft-text">{replyTo.text}</span>
+                  <span className="chat-reply-draft-text">{replyTo.text ?? '🎤 Голосовое сообщение'}</span>
                 </div>
                 <button onClick={() => setReplyTo(null)}>×</button>
               </div>
@@ -797,7 +793,7 @@ export function Chat({
                 <>
                   <span className="chat-recording-dot-anim" />
                   <span className="chat-recording-timer">{fmtRecordTime(recordingTime)}</span>
-                  <RecordingWaveform isRecording={recording} />
+                  <RecordingWaveform stream={recordingStream} />
                   <button
                     type="button"
                     className="chat-send-btn chat-send-btn--stop"
@@ -841,7 +837,7 @@ export function Chat({
                   >
                     <img src={ICON_MIC} alt="Микрофон" style={{ width: 18, height: 18 }} />
                   </button>
-                  <button onClick={send} disabled={!text.trim() && !file} className="chat-send-btn" title="Отправить">
+                  <button onClick={send} disabled={(!text.trim() && !file) || sending} className="chat-send-btn" title="Отправить">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="22" y1="2" x2="11" y2="13"/>
                       <polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -863,19 +859,31 @@ export function Chat({
 
 function FileLink({ filePath }: { filePath: string }) {
   const [url, setUrl] = useState<string | null>(null)
+  const expiresAtRef = useRef<number>(0)
+
+  const fetchUrl = useCallback(async () => {
+    const u = await getSignedUrl(filePath)
+    if (u) {
+      setUrl(u)
+      expiresAtRef.current = Date.now() + 55 * 60 * 1000 // обновить за 5 мин до истечения
+    }
+  }, [filePath])
 
   useEffect(() => {
-    getSignedUrl(filePath).then(u => {
-      console.log('[FileLink] filePath:', filePath, '| signedUrl:', u ? 'OK' : 'NULL')
-      setUrl(u)
-    })
-  }, [filePath])
+    fetchUrl()
+  }, [fetchUrl])
+
+  // Перед воспроизведением проверяем не истёк ли URL
+  const getFreshUrl = useCallback(async (): Promise<string | null> => {
+    if (Date.now() > expiresAtRef.current) await fetchUrl()
+    return url
+  }, [url, fetchUrl])
 
   if (!url) return <div style={{ fontSize: 13 }}>⏳ Загрузка файла...</div>
 
   const isAudio = /\.(webm|ogg|mp3|m4a|wav|mp4)$/i.test(filePath) && filePath.startsWith('voice_')
   if (isAudio) {
-    return <VoicePlayer url={url} />
+    return <VoicePlayer url={url} getFreshUrl={getFreshUrl} />
   }
 
   const lower = filePath.toLowerCase()
